@@ -1,0 +1,25 @@
+Notice for data/gorilla_landmarks.npz
+(written by scripts/fetch_datasets.py --gorilla on 2026-10-22T21:01:22Z)
+
+The file holds the `gorf.dat` (30 female) and `gorm.dat` (29 male) gorilla skull
+landmark arrays of the package (8 landmarks in 2-D per skull; data from Paul O'Higgins,
+Hull-York Medical School; source: O'Higgins, P. & Dryden, I. L. (1993) Sexual dimorphism
+in hominoids: further studies of craniofacial shape differences in Pan, Gorilla, Pongo,
+Journal of Human Evolution 24:183-205).  R's 8 x 2 x n arrays were rearranged to
+points (59, 8, 2) float64 (the 30 females first, then the 29 males, each in the
+package's order) with labels 0 = female, 1 = male.  Values are unchanged.
+
+The arrays were extracted from the source tarball of the R package "shapes"
+version 1.2.8 by Ian L. Dryden (https://cran.r-project.org/package=shapes,
+https://github.com/iandryden/shapes), which is distributed under the GNU
+General Public License version 2 (GPL-2).  They are redistributed here under
+the same licence, GPL-2, with this notice.  The full licence text is in
+LICENSES/GPL-2.txt and at https://www.gnu.org/licenses/old-licenses/gpl-2.0.txt.
+The GPL-2 applies to this data file; the rest of this repository is MIT-licensed
+(see LICENSE).
+
+Source tarball: shapes_1.2.8.tar.gz
+  md5    9e81c00a7ad99c973e2eae37cc6cce63
+  sha256 2b1df1abbe8f4836e20bb23844fabe8acb3f7ca09b9fc9fbe9cd55d972463333
+Reference: Dryden, I. L. & Mardia, K. V. (2016). Statistical Shape Analysis,
+with Applications in R (2nd ed.). Wiley.

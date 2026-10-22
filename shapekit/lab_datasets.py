@@ -67,15 +67,39 @@ def _load_mef() -> tuple[np.ndarray, np.ndarray]:
     return points.astype(float), labels.astype(int)
 
 
+def _npz_path(filename: str, fetch_flag: str, local: bool = False) -> Path:
+    """Where ``fetch_datasets.py`` put the file; raises ``DatasetNotFetched`` if it is not there."""
+    base = Path(resolve_data_dir())
+    path = (base / "_local" / filename) if local else (base / filename)
+    if not path.exists():
+        raise DatasetNotFetched(f"{path} is missing; run: python scripts/fetch_datasets.py {fetch_flag}")
+    return path
+
+
 def _npz_loader(filename: str, fetch_flag: str, local: bool = False) -> Callable[[], tuple[np.ndarray, np.ndarray]]:
     def load() -> tuple[np.ndarray, np.ndarray]:
-        base = Path(resolve_data_dir())
-        path = (base / "_local" / filename) if local else (base / filename)
-        if not path.exists():
-            raise DatasetNotFetched(f"{path} is missing; run: python scripts/fetch_datasets.py {fetch_flag}")
-        with np.load(path, allow_pickle=False) as f:
+        with np.load(_npz_path(filename, fetch_flag, local), allow_pickle=False) as f:
             return f["points"].astype(float), f["labels"].astype(int)
     return load
+
+
+def leaves_classes() -> tuple[str, ...]:
+    """The species names stored in ``data/leaves_outlines.npz`` (in label order)."""
+    with np.load(_npz_path("leaves_outlines.npz", "--leaves"), allow_pickle=False) as f:
+        return tuple(str(c) for c in f["classes"])
+
+
+def _load_leaves() -> tuple[np.ndarray, np.ndarray]:
+    """Leaves: the class names travel with the npz; refuse to load if they differ from the registry."""
+    with np.load(_npz_path("leaves_outlines.npz", "--leaves"), allow_pickle=False) as f:
+        classes = tuple(str(c) for c in f["classes"])
+        points, labels = f["points"].astype(float), f["labels"].astype(int)
+    if classes != LEAVES.classes:
+        raise ValueError(
+            f"data/leaves_outlines.npz carries classes {classes}, the registry says {LEAVES.classes}; "
+            "re-run scripts/fetch_datasets.py --leaves or update LEAVES.classes"
+        )
+    return points, labels
 
 
 CELEGANS = LabDataset(
@@ -150,15 +174,22 @@ LEAVES = LabDataset(
     title="Leaf outlines, species",
     question="Can a leaf's species be read from its outline?",
     representation="outline",
-    classes=(),  # filled by fetch_datasets.py from the data; see lab_datasets_meta.json
+    # speciesNumber order of the figshare CSV (label = speciesNumber - 1); the npz carries the
+    # same names and _load_leaves() checks they agree.
+    classes=(
+        "Ulmus Minor", "Acer Platanoides", "Ulmus Laevis", "Quercus Robur", "Betula Pubescens",
+        "Tilia Platyphyllos", "Salix Fragilis", "Populus Tremula", "Ulmus Glabra", "Sorbus Aucuparia",
+        "Prunus Padus", "Tilia Cordata", "Populus Sp.", "Scandosorbus Intermedia", "Fagus Sylvatica",
+    ),
     source=Source(
         name="Outlines of Swedish leaves (figshare 14551005), from the Swedish Leaf dataset",
-        citation="Leroi, Marsland & Salili-James (2022), figshare; Söderkvist, O. J. O. (2001) MSc thesis, Linköping University",
+        citation="Leroi, Marsland & Salili-James, figshare DOI 10.6084/m9.figshare.14551005 (CC BY 4.0); "
+                 "outlines traced from Söderkvist, O. J. O. (2001) Swedish Leaf dataset, MSc thesis, Linköping University",
         url="https://figshare.com/articles/dataset/Outlines_of_Swedish_leaves/14551005",
         license="CC BY 4.0",
         redistributed=True,
     ),
-    loader=_npz_loader("leaves_outlines.npz", "--leaves"),
+    loader=_load_leaves,
     closed=True,
     fetch_command="python scripts/fetch_datasets.py --leaves",
 )

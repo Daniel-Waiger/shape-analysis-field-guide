@@ -23,9 +23,23 @@ This guide is a re-telling, not an original research contribution. Here is what 
 - `data/mef_outlines_subset.npz` — 1,200 of the tutorial's 5,377 MEF outlines (`mef_data.npy`), chosen
   with a fixed seed (600 wild-type, 600 LMNA−/−), converted from (row, col) to (x, y) and stored as float32.
   The tutorial derived these from the **Micropattern_MEF_LMNA_Image** dataset
-  (<https://github.com/kukionfr/Micropattern_MEF_LMNA_Image>). [Unverified] The license of that
-  image dataset was not checked for this guide; the outlines are redistributed here on the strength of
-  the tutorial's BSD-3 license only.
+  (<https://github.com/kukionfr/Micropattern_MEF_LMNA_Image>), MIT © 2020 Kyu Sang Han; the outlines
+  are redistributed here under that MIT licence and the tutorial's BSD-3 licence.
+
+## Lab datasets (chapter 10, `shapekit/lab_datasets.py`)
+
+The Phenotype Lab uses six labelled datasets. The two above (`celegans`, `mef`) plus the four below. What
+is in the repository was fetched and transformed by `scripts/fetch_datasets.py`, which prints the checksum
+of every download and writes a notice file next to each dataset; nothing was typed in by hand.
+
+| id | data in repo | source | licence | what was derived |
+|---|---|---|---|---|
+| `celegans` | `data/celegans_*.npy` | BBBC010 via Shape Analysis 101 (see above) | CC0 (images), BSD-3 (landmarks) | copied unchanged: 1,377 worms × 12 landmarks, 579 dead / 798 live |
+| `mef` | `data/mef_outlines_subset.npz` | Micropattern_MEF_LMNA_Image via Shape Analysis 101 (see above) | MIT © 2020 Kyu Sang Han; BSD-3 (tutorial) | 1,200 of 5,377 outlines (600 / 600), 120 unordered points each |
+| `brain` | `data/brain_landmarks.npz` | `schizophrenia.dat` of the R package **shapes** 1.2.8 by Ian L. Dryden (<https://cran.r-project.org/package=shapes>); Bookstein's schizophrenia data, Bookstein, F. L. (1996) *Bull. Math. Biol.* 58:313–365, provided to the package by Fred Bookstein | **GPL-2** (the package's licence; notice in `data/brain_landmarks.LICENSE`, full text in `LICENSES/GPL-2.txt`) | R's 13 × 2 × 28 array rearranged to (28, 13, 2); labels 0 = control (subjects 1–14), 1 = schizophrenia (15–28), verified against `schizophrenia$group`; values unchanged |
+| `gorilla` | `data/gorilla_landmarks.npz` | `gorf.dat` and `gorm.dat` of the same package; data from Paul O'Higgins; O'Higgins, P. & Dryden, I. L. (1993) *J. Hum. Evol.* 24:183–205; Dryden & Mardia (2016) ch. 1 | **GPL-2** (notice in `data/gorilla_landmarks.LICENSE`) | 8 × 2 × 30 and 8 × 2 × 29 arrays rearranged to (59, 8, 2); labels 0 = female (30), 1 = male (29); values unchanged |
+| `leaves` | `data/leaves_outlines.npz` | **Outlines of Swedish leaves**, Armand Leroi, Stephen Marsland and Arianna Salili-James, figshare DOI 10.6084/m9.figshare.14551005 (<https://figshare.com/articles/dataset/Outlines_of_Swedish_leaves/14551005>), traced from Oskar J. O. Söderkvist's (2001) Swedish Leaf dataset (Linköping University; <https://www.cvl.isy.liu.se/en/research/datasets/swedish-leaf/>, which states no terms; the author's Zenodo copy, record 19663514, is CC BY 4.0) | **CC BY 4.0** | the CSV carries the species labels (15 species, 440 outlines, 27–30 per species). Each outline (200 points in the file, the closing vertex repeated) was resampled to 150 points by arc length; coordinates otherwise unchanged (scaled to ±1.5 by the authors). Details in `data/leaves_outlines.ATTRIBUTION.md` |
+| `rbc` | **nothing** (`data/_local/`, git-ignored) | **erythrocytesIDB** version 2 (October 2017), Marrero Fernández, P. D., Coello Said, G., Delgado Font, W. E., Herold García, S., Fernández García, K., Montoya Padrón, A., González-Hidalgo, M. & Jaume-i-Capó, A., Universitat de les Illes Balears, Zenodo record 18299474 (<https://zenodo.org/records/18299474>); related paper *IEEE J. Biomed. Health Inform.* 19(4):1514–1525 (2015) | **CC BY-NC-ND 4.0** | `scripts/fetch_datasets.py --rbc` downloads the 594 MB zip locally and traces one closed outline (150 arc-length points) per connected component of the per-class field masks of erythrocytesIDB2 and erythrocytesIDB3 (labels circular / elongated / other). Nothing derived is committed or published: the lab reports only accuracies, confusion matrices and counts for this dataset |
 
 ## Code the deep-learning chapter was checked against
 
