@@ -32,7 +32,7 @@ Two ways, same text:
   cd docs && python3 -m http.server 8000     # then open http://localhost:8000
   ```
 
-  To publish it, enable GitHub Pages from the `/docs` folder (private repos need a paid plan; see
+  To publish it, enable GitHub Pages from the `/docs` folder of the `main` branch (see
   [docs/README-site.md](docs/README-site.md)).
 
 ## The map
