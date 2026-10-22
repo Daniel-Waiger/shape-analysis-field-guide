@@ -24,16 +24,16 @@ Two ways, same text:
 
 - **On GitHub**: start at [docs/chapters/00-start-here.md](docs/chapters/00-start-here.md). Formulas and
   figures render in place; the animations are GIFs.
-- **As a site** (nicer: dark mode, keyboard navigation, and six *interactive* demos where you drag landmarks,
-  solve a rotation, walk a geodesic, sweep PCA modes, bend a spline and watch a contrastive loss pull points
-  apart):
+- **As a site**, at **<https://daniel-waiger.github.io/shape-analysis-field-guide/>** (nicer: dark mode,
+  keyboard navigation, and six *interactive* demos where you drag landmarks, solve a rotation, walk a
+  geodesic, sweep PCA modes, bend a spline and watch a contrastive loss pull points apart). To run the same
+  site locally:
 
   ```bash
   cd docs && python3 -m http.server 8000     # then open http://localhost:8000
   ```
 
-  To publish it, enable GitHub Pages from the `/docs` folder of the `main` branch (see
-  [docs/README-site.md](docs/README-site.md)).
+  It is served by GitHub Pages from the `/docs` folder of `main` (see [docs/README-site.md](docs/README-site.md)).
 
 ## The map
 

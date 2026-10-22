@@ -75,6 +75,7 @@ pip install -e .                      # installs shapekit; numpy, scipy, matplot
 python scripts/make_figures.py        # regenerates docs/figures/ deterministically (seed 0)
 python scripts/export_site_data.py    # writes docs/data/*.json for the interactive demos
 cd docs && python -m http.server      # then open http://localhost:8000/index.html
+# or read it online: https://daniel-waiger.github.io/shape-analysis-field-guide/
 pytest                                # fast test suite; torch tests are skipped if torch is absent
 ```
 
