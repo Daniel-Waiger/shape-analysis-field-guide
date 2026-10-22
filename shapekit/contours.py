@@ -7,6 +7,12 @@ they plot correctly with ``plt.plot(points[:, 0], points[:, 1])`` and an
 inverted y axis.
 
 Explained in chapter 01.
+
+Credits: the pipeline (mask, contour, skeleton, endpoint search,
+nearest-neighbour ordering, arc-length resampling) follows notebook 1 of
+*Shape Analysis 101* by Johannes Hugger and Virginie Uhlmann (2021, BSD-3).
+Contour tracing is marching squares as in scikit-image's ``find_contours``;
+thinning is Zhang & Suen (1984).  Re-implemented, not copied.
 """
 
 from __future__ import annotations

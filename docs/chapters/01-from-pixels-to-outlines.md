@@ -104,4 +104,8 @@ You can run the code, but the landmarks will not correspond across cells: a clos
 The total arc length is 3.414, so the midpoint is at distance 1.707. Pixel $(2,1)$ sits at distance 2.414, past the midpoint. The midpoint lies halfway along the diagonal step from $(1,0)$ to $(2,1)$.
 </details>
 
+## Credits
+
+Adapted from notebook 1 (*Data Preparation*) of *Shape Analysis 101* by Johannes Hugger and Virginie Uhlmann (Uhlmann group, EMBL-EBI, 2021; BSD-3): the mask → contour → skeleton → arc-length → spline pipeline and the *C. elegans* / MEF examples are theirs; the explanations, figures and `shapekit.contours` are new. Contour tracing follows scikit-image's `find_contours`; thinning is the Zhang–Suen algorithm (1984).
+
 **Next:** [02 · Preshape: removing position and size](02-preshape.md)

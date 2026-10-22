@@ -173,3 +173,7 @@ Every term used in the guide, in alphabetical order, with the chapter that expla
 **Train / eval mode** — PyTorch's two modes, switched by `model.train()` and `model.eval()`; they change BatchNorm's behavior and must be set explicitly. [09](09-field-notes.md)
 
 **Weight decay** — A small pull of all weights toward zero during training, to limit overfitting. [08](08-learned-embeddings.md)
+
+---
+
+*Credits: terms and formulas follow *Shape Analysis 101* by Johannes Hugger and Virginie Uhlmann (Uhlmann group, EMBL-EBI, 2021; BSD-3) and Dryden & Mardia (2016); see [ATTRIBUTION.md](../../ATTRIBUTION.md).*

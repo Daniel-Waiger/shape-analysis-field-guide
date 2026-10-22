@@ -114,4 +114,8 @@ That the average of $\cos^2 \rho_i$ over worms is 0.938: the worms cluster tight
 No. The mean is defined only up to rotation, and each GPA run inherits the orientation of its starting reference. Rotate one onto the other with `shapekit.procrustes.align` and compare again; the Procrustes distance between them should be around $10^{-5}$ or smaller.
 </details>
 
+## Credits
+
+Adapted from notebook 2A (*Discrete Shape Analysis*) of *Shape Analysis 101* by Johannes Hugger and Virginie Uhlmann (Uhlmann group, EMBL-EBI, 2021; BSD-3): the eigenvector form of the Fréchet mean follows Dryden & Mardia (2016), Result 8.2, as the tutorial cites it; the GPA loop is the tutorial's, re-analysed here. The quoted comment is theirs and is marked as a quotation.
+
 **Next:** [06 · Tangent space and PCA](06-tangent-space-and-pca.md)

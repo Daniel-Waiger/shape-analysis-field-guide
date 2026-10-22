@@ -157,4 +157,8 @@ Each anchor sees 49 others, all equally similar, so each positive has probabilit
 Unknown. The probe must be evaluated on cells the network never saw, with a seeded stratified split, and compared with the untrained baseline (0.835 in the tutorial). Beating the baseline on held-out cells is the claim; a training-set number is not.
 </details>
 
+## Credits
+
+Adapted from notebook 3 (*Shape Embeddings*) and the `shape_embeddings/` package of *Shape Analysis 101* by Johannes Hugger and Virginie Uhlmann (Uhlmann group, EMBL-EBI, 2021; BSD-3), written by Johannes Hugger, which build on PointNet (Qi, Su, Mo & Guibas 2017; reference code fxia22/pointnet.pytorch, MIT) and supervised contrastive learning (Khosla et al. 2020; reference code HobbitLong/SupContrast, BSD-2). `shapekit.embed` re-implements both; the training results quoted are from this repository's own run.
+
 **Next:** [09 · Field notes: bugs and how to avoid them](09-field-notes.md)

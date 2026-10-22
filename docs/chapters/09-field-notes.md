@@ -129,4 +129,8 @@ An accumulator bug such as <code>run_loss += run_loss</code> (0 plus 0 stays 0),
 Re-run both and compare numerically, and check whether the code under the comment has changed since the comment was written. Comments describe the code at the moment they were typed.
 </details>
 
+## Credits
+
+The bugs discussed are in *Shape Analysis 101* by Johannes Hugger and Virginie Uhlmann (Uhlmann group, EMBL-EBI, 2021; BSD-3) as of commit `bfccc0c` (November 2023); the dates come from that repository's git history, and the tutorial is quoted only where quotation marks show it. The `Center` transform is PyTorch Geometric's (MIT). The authors deserve credit for publishing a complete, runnable course with its data: that openness is what made this chapter possible.
+
 **Next:** [Glossary](glossary.md) · [Cheat sheet](cheatsheet.md) · [References](references.md)

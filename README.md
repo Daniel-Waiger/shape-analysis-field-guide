@@ -90,6 +90,27 @@ shapekit/        the library            tests/          pytest
 scripts/         figure + data makers   data/           the two datasets (small)
 ```
 
+## Credits
+
+This guide stands on other people's work, and says so:
+
+- **Johannes Hugger and Virginie Uhlmann** (Uhlmann group, EMBL-EBI) wrote the course this guide adapts,
+  [*Shape Analysis 101*](https://github.com/uhlmanngroup/shapeanalysis101) (2021, BSD-3): its chapter
+  sequence, its two datasets and the worked results quoted here are theirs. Virginie Uhlmann wrote the
+  spline toolbox it ships (`spline_curve_model.py`), and Virginie Uhlmann and Anna Song wrote its spline
+  shape space, implementing Song, Uhlmann, Fageot & Unser (2020).
+- The statistical theory is Kendall's (1984), as set out by Dryden & Mardia (2016). Splines follow Unser,
+  Aldroubi & Eden (1993). PointNet is Qi et al. (2017); supervised contrastive learning is Khosla et al.
+  (2020). Reference implementations read while writing `shapekit.embed`: fxia22/pointnet.pytorch (MIT) and
+  HobbitLong/SupContrast (BSD-2).
+- Data: BBBC010 (Ljosa, Sokolnicki & Carpenter 2012) for the worms; the Micropattern_MEF_LMNA_Image
+  dataset (kukionfr) for the cells, both as prepared by the tutorial.
+
+Nothing from these sources is reproduced verbatim except the two small data files and bibliographic
+citations: the methods were re-implemented, the text was written fresh, and the figures and demos are new.
+Where a passage quotes the tutorial, it is in quotation marks. Each chapter ends with its own credits, each
+`shapekit` module names its sources in its header, and [ATTRIBUTION.md](ATTRIBUTION.md) has the full list.
+
 ## Honesty notes
 
 - Numbers quoted in the chapters are results on these two datasets, computed by the scripts here or taken from

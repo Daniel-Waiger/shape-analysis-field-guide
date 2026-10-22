@@ -100,4 +100,8 @@ Head-to-tail distance depends on how bent the worm is, so dividing by it would c
 22 coordinates, but only 21 of them are free. Starting from 24 coordinates, centering fixes two sums to zero (24 → 22 coordinates) and scaling fixes the norm to one, which removes one more degree of freedom (a 21-dimensional surface). Rotation will remove one more in Chapter 03, leaving 20, which is the number of nonzero PCA components found in Chapter 06.
 </details>
 
+## Credits
+
+Adapted from notebook 2A (*Discrete Shape Analysis*) of *Shape Analysis 101* by Johannes Hugger and Virginie Uhlmann (Uhlmann group, EMBL-EBI, 2021; BSD-3), whose data give the quoted numbers. The theory is Kendall's (1984) as set out in Dryden & Mardia, *Statistical Shape Analysis* (2016).
+
 **Next:** [03 · Rotation, solved in one line](03-rotation-and-complex-numbers.md)

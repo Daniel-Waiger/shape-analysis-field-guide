@@ -119,4 +119,8 @@ Because the raw coordinates still contain position, size and rotation. Averaging
 Correspondence. Each worm's landmark $k$ is at the same relative position along the body for every worm. The 120 cell points are random samples from the outline, so point $k$ of one cell has nothing to do with point $k$ of another. Chapter 01 explains the consequence, Chapter 08 the workaround.
 </details>
 
+## Credits
+
+This guide adapts *Shape Analysis 101* by Johannes Hugger and Virginie Uhlmann (Uhlmann group, EMBL-EBI, 2021; BSD-3), whose course structure, datasets and worked results it follows. The worm landmarks derive from BBBC010 (Ljosa, Sokolnicki & Carpenter 2012); the cell outlines from the Micropattern_MEF_LMNA_Image dataset (kukionfr), both as prepared by the tutorial. The text, figures, demos and code in this repository are new; nothing from the tutorial is reproduced verbatim except the two data files and bibliographic citations. Full list: [ATTRIBUTION.md](../../ATTRIBUTION.md).
+
 **Next:** [01 · From pixels to outlines](01-from-pixels-to-outlines.md)

@@ -30,6 +30,13 @@ file is written to avoid:
 Reference implementations read while writing this (not copied):
 ``fxia22/pointnet.pytorch`` (MIT) for the PointNet layout and
 ``HobbitLong/SupContrast`` (BSD-2) for the loss and its no-positive guard.
+
+Credits: PointNet is Qi, Su, Mo & Guibas (2017); the reference implementation
+read for the layout is fxia22/pointnet.pytorch (MIT).  The supervised
+contrastive loss is Khosla et al. (2020); the reference implementation read is
+HobbitLong/SupContrast (BSD-2).  The shape-embedding application follows
+notebook 3 of *Shape Analysis 101* by Johannes Hugger and Virginie Uhlmann
+(2021, BSD-3).  Everything here is re-implemented; see ATTRIBUTION.md.
 """
 
 from __future__ import annotations
@@ -398,12 +405,13 @@ class SupConLoss(_Module):
 
         # similarities, sharpened by the temperature
         logits = features @ features.T / self.temperature                   # (B, B)
-        logits = logits - logits.max(dim=1, keepdim=True).values.detach()    # stability only
 
         not_self = ~torch.eye(batch, dtype=torch.bool, device=features.device)
-        # log of the softmax over all a ≠ i:  logit - log(sum_a exp(logit_a))
-        exp_logits = torch.exp(logits) * not_self
-        log_prob = logits - torch.log(exp_logits.sum(dim=1, keepdim=True))
+        # log of the softmax over all a ≠ i:  logit_ij - log(sum_{a≠i} exp(logit_ia)).
+        # The anchor's own column is removed by setting it to -inf before the
+        # log-sum-exp, which also handles numerical stability internally.
+        others = logits.masked_fill(~not_self, float("-inf"))
+        log_prob = logits - torch.logsumexp(others, dim=1, keepdim=True)
 
         positives = (labels[:, None] == labels[None, :]) & not_self          # the mask
         n_pos = positives.sum(dim=1)

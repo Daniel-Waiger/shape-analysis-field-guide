@@ -7,6 +7,10 @@ radians about the origin, counter-clockwise in a y-up coordinate system
 (clockwise when the y axis points down, as in images).
 
 Explained in chapter 03 (the closed-form angle) and chapter 05 (GPA).
+
+Credits: the complex-number formulation follows notebook 2A of *Shape
+Analysis 101* by Johannes Hugger and Virginie Uhlmann (2021, BSD-3) and
+Dryden & Mardia (2016).  Re-implemented, not copied; see ATTRIBUTION.md.
 """
 
 from __future__ import annotations

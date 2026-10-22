@@ -9,6 +9,10 @@ A tangent vector of N complex numbers is stored as 2N real numbers:
 first the N real parts (x), then the N imaginary parts (y).
 
 Explained in chapter 06.
+
+Credits: tangent-space PCA as taught in notebook 2A of *Shape Analysis 101*
+by Johannes Hugger and Virginie Uhlmann (2021, BSD-3), after Dryden & Mardia
+(2016).  Re-implemented, not copied; see ATTRIBUTION.md.
 """
 
 from __future__ import annotations

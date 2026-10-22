@@ -111,4 +111,8 @@ Because the quantity being minimized is the total squared mismatch, and expandin
 $z$, the first argument. The formula $\operatorname{angle}(\sum \bar z_k w_k)$ gives the angle *from* $z$ *to* $w$. Swapping the arguments negates the angle. Getting this backwards does not crash; it quietly doubles the misalignment, so check it on one pair by plotting.
 </details>
 
+## Credits
+
+Adapted from notebook 2A (*Discrete Shape Analysis*) of *Shape Analysis 101* by Johannes Hugger and Virginie Uhlmann (Uhlmann group, EMBL-EBI, 2021; BSD-3), including its complex-number formulation of the rotation problem and the two worms used in the figures. The theory is Kendall's (1984) as set out in Dryden & Mardia (2016).
+
 **Next:** [04 · Kendall shape space](04-kendall-shape-space.md)

@@ -7,6 +7,13 @@ that the rotation does not matter.
 
 Explained in chapters 04 (distances and geodesics), 05 (Fréchet mean) and
 06 (log and exp maps).
+
+Credits: the geometry is Kendall's (1984) as set out in Dryden & Mardia
+(2016).  The functions follow notebook 2A of *Shape Analysis 101* by Johannes
+Hugger and Virginie Uhlmann (2021, BSD-3); the spline-curve version of the
+same geometry (chapter 07) is from Song, Uhlmann, Fageot & Unser (2020) and the
+tutorial's ``spline_shape_space.py`` by Virginie Uhlmann and Anna Song.  This
+module is a re-implementation; see ATTRIBUTION.md.
 """
 
 from __future__ import annotations

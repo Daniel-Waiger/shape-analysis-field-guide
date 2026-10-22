@@ -11,6 +11,10 @@ complex numbers z = x + i y, shape (N,) or (K, N) for a dataset.  Every
 function here accepts either representation.
 
 Explained in chapter 02 (and chapter 03 for the complex form).
+
+Credits: the preshape construction follows notebook 2A of *Shape Analysis
+101* by Johannes Hugger and Virginie Uhlmann (2021, BSD-3) and Dryden &
+Mardia (2016).  See ATTRIBUTION.md.
 """
 
 from __future__ import annotations

@@ -151,4 +151,8 @@ The 1-4-1 blur looks both backward and forward. Its polynomial $x^2 + 4x + 1$ ha
 Large but not maximal: each bump now overlaps its neighbor rather than itself, so the overlap drops from about $0.479$ per coefficient to about $0.236$, roughly half. The curves are similar but not identical, which matches the picture of a curve slid one magnet along.
 </details>
 
+## Credits
+
+Adapted from notebook 2B (*Continuous Shape Analysis*) of *Shape Analysis 101* by Johannes Hugger and Virginie Uhlmann (Uhlmann group, EMBL-EBI, 2021; BSD-3) and the tutorial's `spline_models/` package: `spline_curve_model.py` by Virginie Uhlmann (Uhlmann group's Spline Fitting Toolbox v1.0) and `spline_shape_space.py` by Virginie Uhlmann and Anna Song, which implement Song, Uhlmann, Fageot & Unser (2020). The interpolation filter is Unser, Aldroubi & Eden (1993). `shapekit.bspline` re-implements it (a direct solve, and the two-sweep filter written with `scipy.signal.lfilter`) rather than copying the toolbox.
+
 **Next:** [08 · Learned embeddings](08-learned-embeddings.md)

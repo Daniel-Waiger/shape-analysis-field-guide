@@ -15,6 +15,12 @@ Conventions used here:
 - Closed curves use ``t`` in ``[0, M)`` and wrap around.
 
 Explained in chapter 07.
+
+Credits: the B-spline model and the interpolation filter are from Unser,
+Aldroubi & Eden (1993) and Unser (1999).  The reference implementation that
+was read while writing this module is Virginie Uhlmann's Spline Fitting
+Toolbox v1.0 (``spline_models/spline_curve_model.py`` in *Shape Analysis
+101*, BSD-3); nothing from it is reproduced verbatim.  See ATTRIBUTION.md.
 """
 
 from __future__ import annotations
@@ -56,17 +62,32 @@ def cubic_bspline(x: ArrayLike) -> NDArray:
     return out
 
 
-def interpolation_filter(samples: ArrayLike, closed: bool = False) -> NDArray:
+def interpolation_filter(samples: ArrayLike, closed: bool = False, method: str = "solve") -> NDArray:
     """Control points whose cubic B-spline curve passes through the samples.
 
     At integer parameters the curve equals a blur of the control points,
-    ``s_k = (c_{k-1} + 4 c_k + c_{k+1}) / 6``.  Fitting means un-blurring.
-    The recursive filter does it exactly in two sweeps::
+    ``s_k = (c_{k-1} + 4 c_k + c_{k+1}) / 6``.  Fitting means un-blurring,
+    and there are two exact ways to do it:
+
+    ``method="solve"`` (default) writes the blur as a banded linear system,
+    one row per sample, and solves it directly::
+
+        [4 2 0 ...]           [c_0]       [s_0]
+        [1 4 1 ...]  / 6  @   [c_1]   =   [s_1]      (open: mirror ends)
+        [...      ]           [...]       [...]
+
+    ``method="recursive"`` is the classic two-sweep filter of Unser,
+    Aldroubi and Eden (1993), which the source tutorial's spline toolbox
+    also uses::
 
         p       = -2 + sqrt(3)                       (the pole)
         c+[k]   = s[k] + p * c+[k - 1]               (forward sweep)
         c-[k]   = p * (c-[k + 1] - c+[k])            (backward sweep)
         c       = 6 * c-
+
+    Both give the same control points to machine precision; the recursive
+    one is what chapter 07 walks through step by step, and it is written
+    here with ``scipy.signal.lfilter`` so each sweep is a one-line call.
 
     - ``samples``: the values to pass through, shape ``(M,)`` or
       ``(M, d)`` (each column is filtered on its own, so pass ``(M, 2)``
@@ -81,42 +102,85 @@ def interpolation_filter(samples: ArrayLike, closed: bool = False) -> NDArray:
     Explained in chapter 07.
     """
     s = np.asarray(samples, dtype=float)
-    if s.ndim == 1:
-        return _filter_1d(s, closed)
-    return np.stack([_filter_1d(s[:, j], closed) for j in range(s.shape[1])], axis=1)
+    if method not in ("solve", "recursive"):
+        raise ValueError("method must be 'solve' or 'recursive'")
+    one_d = s.ndim == 1
+    cols = s[:, None] if one_d else s
+    if method == "solve":
+        c = _solve_1_4_1(cols, closed)
+    else:
+        c = np.stack([_recursive_1d(cols[:, j], closed) for j in range(cols.shape[1])], axis=1)
+    return c[:, 0] if one_d else c
 
 
-def _filter_1d(s: NDArray, closed: bool) -> NDArray:
-    """Unser's recursive cubic-spline filter for one column of samples."""
+def _solve_1_4_1(s: NDArray, closed: bool) -> NDArray:
+    """Un-blur by solving ``(1/6) * [1 4 1] @ c = s`` as a linear system.
+
+    ``s`` is ``(M, d)``; every column is solved at once.  For a closed curve
+    the blur wraps around (a circulant matrix); for an open curve the mirror
+    rule ``c_{-1} = c_1`` and ``c_M = c_{M-2}`` folds the two outside
+    neighbours back in, which doubles the off-diagonal entry in the first
+    and last row.
+    """
+    M = s.shape[0]
+    if M < 2:
+        return s.astype(float).copy()  # a single sample interpolates itself
+    A = np.zeros((M, M))
+    idx = np.arange(M)
+    A[idx, idx] = 4.0
+    if closed:
+        A[idx, (idx + 1) % M] += 1.0
+        A[idx, (idx - 1) % M] += 1.0
+    else:
+        A[idx[:-1], idx[:-1] + 1] += 1.0
+        A[idx[1:], idx[1:] - 1] += 1.0
+        A[0, 1] += 1.0          # c_{-1} = c_1
+        A[M - 1, M - 2] += 1.0  # c_M = c_{M-2}
+    return np.linalg.solve(A / 6.0, s)
+
+
+def _recursive_1d(s: NDArray, closed: bool) -> NDArray:
+    """The two-sweep recursive filter for one column, via ``scipy.signal.lfilter``.
+
+    Each sweep is a first-order recursion, which is exactly what ``lfilter``
+    with denominator ``[1, -p]`` computes.  Only the *starting values* of the
+    two sweeps depend on the boundary rule; they are the standard ones from
+    Unser, Aldroubi and Eden (1993): a geometric sum of the extended samples
+    for the forward sweep, and a closed-form combination of the last two
+    forward values (open) or another geometric sum (closed) for the backward
+    sweep.
+    """
+    from scipy.signal import lfilter
+
     M = len(s)
     p = POLE
     if M < 2:
-        return s.astype(float).copy()  # a single sample interpolates itself
-    cp = np.zeros(M)
-    cm = np.zeros(M)
+        return s.astype(float).copy()
+    # Extended sample sequence read backwards from index 0, as the forward
+    # sweep's start value needs it: periodic or mirrored.
     if closed:
-        # Periodic start values: sum of the sequence read backwards, weighted by p^k.
-        cp[0] = sum(s[(M - k) % M] * p**k for k in range(M)) / (1.0 - p**M)
-        for k in range(1, M):
-            cp[k] = s[k] + p * cp[k - 1]
-        cm[M - 1] = sum(p**k * cp[k] for k in range(M)) * p / (1.0 - p**M)
-        cm[M - 1] = -p * (cm[M - 1] + cp[M - 1])
+        period = M
+        back = s[(-np.arange(M)) % M]
     else:
-        # Mirror extension s[-k] = s[k], s[M-1+k] = s[M-1-k], period 2M - 2.
         period = 2 * M - 2
-        horizon = min(period, int(np.ceil(np.log(1e-12) / np.log(abs(p)))))
-        total = 0.0
-        for k in range(horizon):
-            idx = k % period
-            idx = period - idx if idx >= M else idx
-            total += s[idx] * p**k
-        cp[0] = total / (1.0 - p**period)
-        for k in range(1, M):
-            cp[k] = s[k] + p * cp[k - 1]
-        cm[M - 1] = (p / (p**2 - 1.0)) * (cp[M - 1] + p * cp[M - 2])
-    for k in range(M - 2, -1, -1):
-        cm[k] = p * (cm[k + 1] - cp[k])
-    return 6.0 * cm
+        mirrored = np.concatenate([s, s[-2:0:-1]])           # one full period
+        back = mirrored[(-np.arange(period)) % period]
+    start_fwd = np.sum(back * p ** np.arange(len(back))) / (1.0 - p**period)
+
+    forward = np.empty(M)
+    forward[0] = start_fwd
+    forward[1:] = lfilter([1.0], [1.0, -p], s[1:], zi=[p * start_fwd])[0]
+
+    if closed:
+        tail = np.sum(p ** np.arange(M) * forward) * p / (1.0 - p**M)
+        start_bwd = -p * (tail + forward[-1])
+    else:
+        start_bwd = (p / (p**2 - 1.0)) * (forward[-1] + p * forward[-2])
+
+    # Backward sweep c-[k] = p * (c-[k+1] - c+[k]), run on the reversed arrays.
+    rev = lfilter([-p], [1.0, -p], forward[-2::-1], zi=[p * start_bwd])[0]
+    backward = np.concatenate([rev[::-1], [start_bwd]])
+    return 6.0 * backward
 
 
 def basis_matrix(t: ArrayLike, M: int, closed: bool = False) -> NDArray:

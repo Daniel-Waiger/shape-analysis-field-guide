@@ -4,6 +4,11 @@ Both return landmarks with the shapekit axis convention: ``(K, N, 2)`` with
 ``(x, y)`` columns in image pixel units (x = column, y = row).
 
 Explained in chapter 00.
+
+Credits: both datasets ship with *Shape Analysis 101* by Johannes Hugger and
+Virginie Uhlmann (2021, BSD-3).  The worms derive from BBBC010 (Ljosa,
+Sokolnicki & Carpenter 2012); the cells from the Micropattern_MEF_LMNA_Image
+dataset (kukionfr).  See ATTRIBUTION.md.
 """
 
 from __future__ import annotations

@@ -101,4 +101,8 @@ No. The squared mismatch after optimal rotation is $2 - 2\lvert \langle z, w \ra
 The blend leaves the sphere: halfway between two unit vectors at 60° apart it has length $\sqrt{(2 + 2\cos 60^\circ)}/2 = 0.866$, not 1. The intermediate frames would be shrunken and, if renormalized, unevenly spaced. Slerp keeps every frame at unit norm and at equal angular steps.
 </details>
 
+## Credits
+
+Adapted from notebook 2A (*Discrete Shape Analysis*) of *Shape Analysis 101* by Johannes Hugger and Virginie Uhlmann (Uhlmann group, EMBL-EBI, 2021; BSD-3); the three distances and the geodesic path follow Dryden & Mardia (2016) and Kendall (1984). The numbers are re-computed on the tutorial's data.
+
 **Next:** [05 · Mean shapes](05-mean-shapes.md)

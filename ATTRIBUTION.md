@@ -4,12 +4,13 @@ This guide is a re-telling, not an original research contribution. Here is what 
 
 ## Course material
 
-- **Shape Analysis 101** — Hugger, J., Uhlmann, V. (2021). *Shape Analysis 101 Tutorial.*
+- **Shape Analysis 101** — Johannes Hugger and Virginie Uhlmann (2021). *Shape Analysis 101 Tutorial.*
   <https://github.com/uhlmanngroup/shapeanalysis101>, BSD 3-Clause (Uhlmann Group @ EMBL-EBI).
   The chapter sequence, the two datasets, the worked results quoted in the chapters, and the
   methods implemented in `shapekit/` follow this tutorial. `shapekit/` is a clean re-implementation
   written for this guide, with the tutorial's `spline_models/` used as the reference for the B-spline
-  interpolation filter and the spline shape space. The tutorial's license text is reproduced in `LICENSE`.
+  interpolation filter (`spline_curve_model.py`, by Virginie Uhlmann: the Uhlmann group's Spline Fitting
+  Toolbox v1.0) and the spline shape space (`spline_shape_space.py`, by Virginie Uhlmann and Anna Song). The tutorial's license text is reproduced in `LICENSE`.
 - The spline shape-space construction follows: Song, A., Uhlmann, V., Fageot, J., Unser, M. (2020).
   *Dictionary learning for two-dimensional Kendall shapes.* SIAM Journal on Imaging Sciences 13(1), 141–175.
 
@@ -37,3 +38,13 @@ This guide is a re-telling, not an original research contribution. Here is what 
 ## Everything else
 
 Text, figures, animations, interactive demos and tests were written for this repository and are MIT-licensed.
+
+## What was and was not copied
+
+A token-level scan of this repository against the tutorial (notebooks, modules, README) and against the two
+upstream code bases above found no verbatim prose beyond bibliographic citations and marked quotations. Two
+code fragments that mirrored their sources line for line, the two sweeps of the recursive spline filter and
+one line of the contrastive loss, were rewritten (`shapekit/bspline.py` now solves the banded system directly
+and writes the recursive variant with `scipy.signal.lfilter`; `shapekit/embed.py` uses `logsumexp`). The two
+data files are copied unchanged under the tutorial's BSD-3 license. Every chapter ends with its credits and
+every `shapekit` module names its sources in its header.

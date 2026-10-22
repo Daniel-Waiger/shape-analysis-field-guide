@@ -161,4 +161,8 @@ Exactly 0.3 radians. The exp map walks distance $t = \lVert v \rVert$ across the
 The scale of your tangent vectors. Compare the lengths of the vectors you generate with the lengths of <code>log_map(mean, z)</code> for real worms. If yours are tens of times longer, you are multiplying by something like $\sqrt{n-1}$ that belongs to a singular value, not a standard deviation.
 </details>
 
+## Credits
+
+Adapted from notebook 2A, sections 3–5, of *Shape Analysis 101* by Johannes Hugger and Virginie Uhlmann (Uhlmann group, EMBL-EBI, 2021; BSD-3): tangent-space PCA, the dead-versus-live comparison and the statistical shape model are their exercises; the numbers are re-computed with `shapekit` on their data. Theory per Dryden & Mardia (2016).
+
 **Next:** [07 · Shapes as smooth curves](07-splines.md)

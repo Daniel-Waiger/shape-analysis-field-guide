@@ -224,3 +224,7 @@ Results on the tutorial's saved one-epoch CPU runs (full MEF set): untrained pro
 | max geodesic distance between preshapes | $\pi/2 = 1.571$ | 04 |
 | shape dimensions for $N$ planar landmarks | $2N - 4$ (= 20 for $N = 12$) | 06 |
 | "learned nothing" SupCon loss, batch $B$ | $\ln(B - 1)$ | 08 |
+
+---
+
+*Credits: terms and formulas follow *Shape Analysis 101* by Johannes Hugger and Virginie Uhlmann (Uhlmann group, EMBL-EBI, 2021; BSD-3) and Dryden & Mardia (2016); see [ATTRIBUTION.md](../../ATTRIBUTION.md).*
