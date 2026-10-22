@@ -12,6 +12,7 @@ inverted, so worms look as they do in the image.
 | File | Shows | Made by |
 |---|---|---|
 | `hero.gif` | A live worm (teal) morphing along the geodesic to the mean worm (ink) and on to a dead worm (coral), then back; loops | `scripts/make_figures.py` |
+| `og-card.png` | 1200 × 630 still of the same three worms with the title: the image link previews (WhatsApp, Slack, X…) show for the site, referenced by the Open Graph tags in `docs/index.html` | `scripts/make_og_card.py` |
 | `01_pipeline.png` | Synthetic cell image → threshold mask → traced contours (one dropped by `min_len`) → 20 arc-length landmarks → closed cubic B-spline | `scripts/make_figures.py` |
 | `01_arclength_resampling.png` | Ordered skeleton pixels with 1 px and √2 px steps (diagonals in gold) next to the same midline resampled to 12 equal arc-length steps | `scripts/make_figures.py` |
 | `01_representations.png` | One worm as 12 ordered landmarks, as 120 unordered points, and as a continuous spline curve | `scripts/make_figures.py` |
