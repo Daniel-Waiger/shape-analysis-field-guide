@@ -129,7 +129,7 @@ MEF = LabDataset(
         name="Micropattern_MEF_LMNA_Image (kukionfr), as prepared in Shape Analysis 101",
         citation="Kyu Sang Han (2020), github.com/kukionfr/Micropattern_MEF_LMNA_Image; outlines by Hugger & Uhlmann (2021)",
         url="https://github.com/kukionfr/Micropattern_MEF_LMNA_Image",
-        license="MIT © 2020 Kyu Sang Han",
+        license="MIT © 2020 Kyu Sang Han; see data/mef_outlines_subset.LICENSE",
         redistributed=True,
     ),
     loader=_load_mef,
@@ -145,7 +145,7 @@ BRAIN = LabDataset(
         name="`schizophrenia` dataset of the R package shapes (I. L. Dryden)",
         citation="Bookstein, F. L. (1996) Bull. Math. Biol. 58:313–365; Dryden & Mardia (2016)",
         url="https://cran.r-project.org/package=shapes",
-        license="GPL-2 (R package); see data/brain_landmarks.LICENSE",
+        license="GPL-2 (R package; https://www.gnu.org/licenses/old-licenses/gpl-2.0.txt); see data/brain_landmarks.LICENSE",
         redistributed=True,
     ),
     loader=_npz_loader("brain_landmarks.npz", "--brain"),
@@ -162,7 +162,7 @@ GORILLA = LabDataset(
         name="`gorf.dat` and `gorm.dat` of the R package shapes (I. L. Dryden)",
         citation="O'Higgins & Dryden (1993); Dryden & Mardia (2016), data from Paul O'Higgins",
         url="https://cran.r-project.org/package=shapes",
-        license="GPL-2 (R package); see data/gorilla_landmarks.LICENSE",
+        license="GPL-2 (R package; https://www.gnu.org/licenses/old-licenses/gpl-2.0.txt); see data/gorilla_landmarks.LICENSE",
         redistributed=True,
     ),
     loader=_npz_loader("gorilla_landmarks.npz", "--gorilla"),
@@ -183,8 +183,11 @@ LEAVES = LabDataset(
     ),
     source=Source(
         name="Outlines of Swedish leaves (figshare 14551005), from the Swedish Leaf dataset",
-        citation="Leroi, Marsland & Salili-James, figshare DOI 10.6084/m9.figshare.14551005 (CC BY 4.0); "
-                 "outlines traced from Söderkvist, O. J. O. (2001) Swedish Leaf dataset, MSc thesis, Linköping University",
+        citation="Leroi, Marsland & Salili-James, Outlines of Swedish leaves, figshare DOI 10.6084/m9.figshare.14551005 "
+                 "(CC BY 4.0, https://creativecommons.org/licenses/by/4.0/); outlines extracted by those authors from the "
+                 "photographs of Söderkvist, O. J. O. (2001) Swedish Leaf dataset, MSc thesis, Linköping University "
+                 "(page states no terms; a Zenodo record listing Söderkvist as creator, 19663514, is CC BY 4.0, uploader "
+                 "not identified); modified here: resampled by arc length, see data/leaves_outlines.ATTRIBUTION.md",
         url="https://figshare.com/articles/dataset/Outlines_of_Swedish_leaves/14551005",
         license="CC BY 4.0",
         redistributed=True,
@@ -204,7 +207,8 @@ RBC = LabDataset(
         name="erythrocytesIDB v2 (Universitat de les Illes Balears), Zenodo 18299474",
         citation="Marrero Fernández et al.; related paper IEEE J. Biomed. Health Inform. 19(4):1514–1525 (2015)",
         url="https://zenodo.org/records/18299474",
-        license="CC BY-NC-ND 4.0: no derived data may be redistributed; fetch locally",
+        license="CC BY-NC-ND 4.0 (https://creativecommons.org/licenses/by-nc-nd/4.0/): no adapted material shared, "
+                "no commercial use; fetched locally, only counts and accuracies published",
         redistributed=False,
     ),
     loader=_npz_loader("rbc_outlines.npz", "--rbc", local=True),

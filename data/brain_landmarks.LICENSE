@@ -9,14 +9,23 @@ and the morphometric synthesis, Bulletin of Mathematical Biology 58:313-365).  R
 subject and landmark order, with labels 0 = control (subjects 1-14) and
 1 = schizophrenia (subjects 15-28) as the package documents.  Values are unchanged.
 
+Copyright: the R package "shapes" is by Ian L. Dryden (its DESCRIPTION names him
+as author and maintainer and carries no separate copyright line); the data were
+provided to the package by Fred Bookstein, as the package documents.
+
 The arrays were extracted from the source tarball of the R package "shapes"
 version 1.2.8 by Ian L. Dryden (https://cran.r-project.org/package=shapes,
 https://github.com/iandryden/shapes), which is distributed under the GNU
 General Public License version 2 (GPL-2).  They are redistributed here under
-the same licence, GPL-2, with this notice.  The full licence text is in
-LICENSES/GPL-2.txt and at https://www.gnu.org/licenses/old-licenses/gpl-2.0.txt.
-The GPL-2 applies to this data file; the rest of this repository is MIT-licensed
-(see LICENSE).
+the same license, GPL-2, with this notice.  The full license text is at
+https://www.gnu.org/licenses/old-licenses/gpl-2.0.txt and a byte-identical copy
+is in LICENSES/GPL-2.txt of this repository.  This data is provided WITHOUT ANY
+WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
+PARTICULAR PURPOSE (GPL-2 sections 11 and 12).  The GPL-2 applies to this data
+file; the rest of this repository is MIT-licensed (see LICENSE).
+[Unverified] The package's GPL-2 is the only license statement found for these
+data; whether the data providers themselves granted that license to the data,
+separately from the package, was not verified.
 
 Source tarball: shapes_1.2.8.tar.gz
   md5    9e81c00a7ad99c973e2eae37cc6cce63

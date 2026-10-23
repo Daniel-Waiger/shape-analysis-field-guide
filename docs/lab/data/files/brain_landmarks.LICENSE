@@ -1,0 +1,34 @@
+Notice for data/brain_landmarks.npz
+(written by scripts/fetch_datasets.py --brain on 2026-10-22T21:01:22Z)
+
+The file holds the `schizophrenia.dat` array of the package (Bookstein's schizophrenia
+data: 13 near-midsagittal brain landmarks from MR images of 28 subjects, data kindly
+provided by Fred Bookstein; source: Bookstein, F. L. (1996) Biometrics, biomathematics
+and the morphometric synthesis, Bulletin of Mathematical Biology 58:313-365).  R's
+13 x 2 x 28 array was rearranged to points (28, 13, 2) float64 in the package's
+subject and landmark order, with labels 0 = control (subjects 1-14) and
+1 = schizophrenia (subjects 15-28) as the package documents.  Values are unchanged.
+
+Copyright: the R package "shapes" is by Ian L. Dryden (its DESCRIPTION names him
+as author and maintainer and carries no separate copyright line); the data were
+provided to the package by Fred Bookstein, as the package documents.
+
+The arrays were extracted from the source tarball of the R package "shapes"
+version 1.2.8 by Ian L. Dryden (https://cran.r-project.org/package=shapes,
+https://github.com/iandryden/shapes), which is distributed under the GNU
+General Public License version 2 (GPL-2).  They are redistributed here under
+the same license, GPL-2, with this notice.  The full license text is at
+https://www.gnu.org/licenses/old-licenses/gpl-2.0.txt and a byte-identical copy
+is in LICENSES/GPL-2.txt of this repository.  This data is provided WITHOUT ANY
+WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
+PARTICULAR PURPOSE (GPL-2 sections 11 and 12).  The GPL-2 applies to this data
+file; the rest of this repository is MIT-licensed (see LICENSE).
+[Unverified] The package's GPL-2 is the only license statement found for these
+data; whether the data providers themselves granted that license to the data,
+separately from the package, was not verified.
+
+Source tarball: shapes_1.2.8.tar.gz
+  md5    9e81c00a7ad99c973e2eae37cc6cce63
+  sha256 2b1df1abbe8f4836e20bb23844fabe8acb3f7ca09b9fc9fbe9cd55d972463333
+Reference: Dryden, I. L. & Mardia, K. V. (2016). Statistical Shape Analysis,
+with Applications in R (2nd ed.). Wiley.

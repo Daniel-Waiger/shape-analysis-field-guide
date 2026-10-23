@@ -63,9 +63,10 @@ Image coordinates have $y$ increasing downward, so figures invert the y-axis to 
 | [07 Shapes as smooth curves](07-splines.md) | Cubic B-splines, exact interpolation, and the same geometry with a Gram matrix |
 | [08 Learned embeddings](08-learned-embeddings.md) | PointNet and contrastive loss for outlines without landmarks |
 | [09 Field notes](09-field-notes.md) | Bugs in the original tutorial and the habits that avoid them |
+| [10 Phenotype Lab](10-phenotype-lab.md) | Six labeled datasets, the three method families side by side, a classifier you can drag; what the real numbers say, including one below chance |
 | [Glossary](glossary.md) · [Cheat sheet](cheatsheet.md) · [References](references.md) | Every term, every formula, every source |
 
-Read 00 to 06 in order; each builds on the one before. Chapters 07 and 08 are independent of each other and can be read in either order after 06. Chapter 09 can be read at any time.
+Read 00 to 06 in order; each builds on the one before. Chapters 07 and 08 are independent of each other and can be read in either order after 06. Chapter 09 can be read at any time. Chapter 10 uses all three method families, so read it after 06, 07 and 08.
 
 ## How to run things
 
@@ -122,6 +123,6 @@ Correspondence. Each worm's landmark $k$ is at the same relative position along 
 
 ## Credits
 
-This guide adapts *Shape Analysis 101* by Johannes Hugger and Virginie Uhlmann (Uhlmann group, EMBL-EBI, 2021; BSD-3), whose course structure, datasets and worked results it follows. The worm landmarks derive from BBBC010 (Ljosa, Sokolnicki & Carpenter 2012); the cell outlines from the Micropattern_MEF_LMNA_Image dataset (kukionfr), both as prepared by the tutorial. The text, figures, demos and code in this repository are new; nothing from the tutorial is reproduced verbatim except the two data files and bibliographic citations. Full list: [ATTRIBUTION.md](../../ATTRIBUTION.md).
+This guide adapts *Shape Analysis 101* by Johannes Hugger and Virginie Uhlmann (Uhlmann group, EMBL-EBI, 2021; BSD-3), whose course structure, datasets and worked results it follows. The worm landmarks derive from BBBC010 (Ljosa, Sokolnicki & Carpenter 2012); the cell outlines from the Micropattern_MEF_LMNA_Image dataset (kukionfr), both as prepared by the tutorial. The text, figures, demos and code in this repository are new; nothing from the tutorial is reproduced verbatim except its two data files and bibliographic citations; the four further datasets of chapter 10 and their licenses (GPL-2, CC BY 4.0, CC BY-NC-ND 4.0) are listed there too. Full list: [ATTRIBUTION.md](../../ATTRIBUTION.md).
 
 **Next:** [01 · From pixels to outlines](01-from-pixels-to-outlines.md)

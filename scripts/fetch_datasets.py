@@ -40,8 +40,8 @@ What each flag produces (see LAB_SPEC.md and ATTRIBUTION.md):
 
 Options: ``--download-dir`` (where the small downloads are kept; default
 ``data/_local/downloads``), ``--skip-download`` (reuse files that are already
-there without re-checking them against the network), ``--n-points`` (points per
-resampled outline, default 150).
+there without contacting the network; their pinned checksums are still
+enforced), ``--n-points`` (points per resampled outline, default 150).
 """
 
 from __future__ import annotations
@@ -49,8 +49,6 @@ from __future__ import annotations
 import argparse
 import csv
 import hashlib
-import io
-import os
 import shutil
 import sys
 import tarfile
@@ -88,6 +86,7 @@ LEAVES_ARTICLE = "https://api.figshare.com/v2/articles/14551005"
 LEAVES_FILE_NAME = "Contours_SwedishLeaves.csv"
 LEAVES_URL_FALLBACK = "https://ndownloader.figshare.com/files/27917577"
 LEAVES_MD5 = "c7984a894d3cbc017805c6ec27a60f5d"   # figshare's computed_md5 for the file
+LEAVES_LICENSE_URL = "https://creativecommons.org/licenses/by/4.0/"
 
 # CC BY-NC-ND 4.0 -- LOCAL USE ONLY.  See the notice printed by fetch_rbc().
 RBC_RECORD = "https://zenodo.org/api/records/18299474"
@@ -152,8 +151,11 @@ def download(url: str, dest: Path, *, md5: str | None = None, skip: bool = False
 
     - a complete ``dest`` that matches ``md5`` (or exists, with ``skip``) is reused;
     - ``resume=True`` continues a partial ``dest.part`` with an HTTP Range request
-      (for the large zip);
-    - HTTP 202 (figshare "preparing the file") and transient errors are retried.
+      (for the large zip); a 416 answer to that request means the ``.part`` is
+      already complete and it is promoted to ``dest`` and verified;
+    - HTTP 202 (figshare "preparing the file") and transient errors are retried;
+    - a finished download is verified against ``md5`` and **deleted** on a
+      mismatch (``SystemExit``), so a bad file never stays on disk.
     """
     dest.parent.mkdir(parents=True, exist_ok=True)
     if dest.exists():
@@ -173,7 +175,15 @@ def download(url: str, dest: Path, *, md5: str | None = None, skip: bool = False
         offset = part.stat().st_size if (resume and part.exists()) else 0
         headers = {"Range": f"bytes={offset}-"} if offset else {}
         try:
-            with _open(url, headers) as r:
+            try:
+                response = _open(url, headers)
+            except urllib.error.HTTPError as e:
+                if offset and e.code == 416:          # the .part already holds the whole file
+                    print(f"    {part.name} is already complete (HTTP 416); verifying it")
+                    part.replace(dest)
+                    return _verify_download(dest, md5)
+                raise
+            with response as r:
                 status = getattr(r, "status", 200)
                 if status == 202:
                     raise urllib.error.HTTPError(url, 202, "not ready", r.headers, None)
@@ -198,7 +208,7 @@ def download(url: str, dest: Path, *, md5: str | None = None, skip: bool = False
             if total and done != total:
                 raise OSError(f"short read: {done} of {total} bytes")
             part.replace(dest)
-            return dest
+            return _verify_download(dest, md5)
         except (urllib.error.URLError, urllib.error.HTTPError, OSError, ConnectionError) as e:
             code = getattr(e, "code", None)
             if attempt == attempts:
@@ -209,6 +219,29 @@ def download(url: str, dest: Path, *, md5: str | None = None, skip: bool = False
                 part.unlink()
             time.sleep(wait)
     raise RuntimeError("unreachable")
+
+
+def _verify_download(dest: Path, md5: str | None) -> Path:
+    """Check a finished download against its pinned md5; delete it and stop on a mismatch."""
+    if md5:
+        got = checksums(dest)[0]
+        if got != md5:
+            dest.unlink()
+            raise SystemExit(f"checksum mismatch for {dest.name}: got md5 {got}, expected {md5}; the file was "
+                             f"deleted, re-run to download it again (or update the pinned md5 if the source changed)")
+    return dest
+
+
+def gitignore_covers(text: str, path: str = "data/_local") -> bool:
+    """True when ``.gitignore`` has a real (uncommented, unnegated) line ignoring ``path``."""
+    wanted = {path, path + "/", "/" + path, "/" + path + "/"}
+    for raw in text.splitlines():
+        line = raw.strip()
+        if not line or line.startswith("#") or line.startswith("!"):
+            continue
+        if line in wanted:
+            return True
+    return False
 
 
 def download_first(urls, dest: Path, **kw) -> Path:
@@ -227,13 +260,16 @@ def safe_extract_zip(zip_path: Path, out_dir: Path) -> int:
     out_dir.mkdir(parents=True, exist_ok=True)
     n = 0
     with zipfile.ZipFile(zip_path) as z:
-        for info in z.infolist():
+        wanted = []
+        for info in z.infolist():            # validate every name before writing anything
             name = info.filename
             if name.startswith("__MACOSX/") or name.endswith(".DS_Store") or info.is_dir():
                 continue
             target = (out_dir / name).resolve()
             if out_dir.resolve() not in target.parents:
                 raise SystemExit(f"refusing to extract {name!r}: path escapes {out_dir}")
+            wanted.append((info, target))
+        for info, target in wanted:
             target.parent.mkdir(parents=True, exist_ok=True)
             with z.open(info) as src, open(target, "wb") as dst:
                 shutil.copyfileobj(src, dst)
@@ -272,20 +308,35 @@ def read_rda_list(rda_path: Path, name: str):
     return rdata.read_rda(str(rda_path))[name]
 
 
-def gpl2_notice(dataset_file: str, flag: str, what: str, tarball: Path, md5: str, sha: str) -> str:
+def gpl2_notice(dataset_file: str, flag: str, what: str, provider: str, tarball: Path, md5: str, sha: str) -> str:
+    """GPL-2 notice for a dataset extracted from the ``shapes`` package.
+
+    ``provider`` names who supplied the data to the package (as its documentation
+    says); the wording of the rest is fixed so that re-running the script
+    reproduces the reviewed notices in data/ (only the timestamp changes).
+    """
     return f"""Notice for data/{dataset_file}
 (written by {SCRIPT} {flag} on {now_iso()})
 
 {what}
 
+Copyright: the R package "shapes" is by Ian L. Dryden (its DESCRIPTION names him
+as author and maintainer and carries no separate copyright line); the data were
+provided to the package by {provider}, as the package documents.
+
 The arrays were extracted from the source tarball of the R package "shapes"
 version {SHAPES_VERSION} by Ian L. Dryden (https://cran.r-project.org/package=shapes,
 https://github.com/iandryden/shapes), which is distributed under the GNU
 General Public License version 2 (GPL-2).  They are redistributed here under
-the same licence, GPL-2, with this notice.  The full licence text is in
-LICENSES/GPL-2.txt and at https://www.gnu.org/licenses/old-licenses/gpl-2.0.txt.
-The GPL-2 applies to this data file; the rest of this repository is MIT-licensed
-(see LICENSE).
+the same license, GPL-2, with this notice.  The full license text is at
+{GPL2_URL} and a byte-identical copy
+is in LICENSES/GPL-2.txt of this repository.  This data is provided WITHOUT ANY
+WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
+PARTICULAR PURPOSE (GPL-2 sections 11 and 12).  The GPL-2 applies to this data
+file; the rest of this repository is MIT-licensed (see LICENSE).
+[Unverified] The package's GPL-2 is the only license statement found for these
+data; whether the data providers themselves granted that license to the data,
+separately from the package, was not verified.
 
 Source tarball: {tarball.name}
   md5    {md5}
@@ -373,7 +424,7 @@ def fetch_brain(download_dir: Path, skip: bool) -> None:
             "subject and landmark order, with labels 0 = control (subjects 1-14) and\n"
             "1 = schizophrenia (subjects 15-28) as the package documents.  Values are unchanged.")
     (DATA / "brain_landmarks.LICENSE").write_text(
-        gpl2_notice("brain_landmarks.npz", "--brain", what, tarball, md5, sha), encoding="utf-8")
+        gpl2_notice("brain_landmarks.npz", "--brain", what, "Fred Bookstein", tarball, md5, sha), encoding="utf-8")
     print("  wrote data/brain_landmarks.LICENSE (GPL-2 notice)")
     ensure_gpl2(download_dir, skip)
 
@@ -398,7 +449,7 @@ def fetch_gorilla(download_dir: Path, skip: bool) -> None:
             "points (59, 8, 2) float64 (the 30 females first, then the 29 males, each in the\n"
             "package's order) with labels 0 = female, 1 = male.  Values are unchanged.")
     (DATA / "gorilla_landmarks.LICENSE").write_text(
-        gpl2_notice("gorilla_landmarks.npz", "--gorilla", what, tarball, md5, sha), encoding="utf-8")
+        gpl2_notice("gorilla_landmarks.npz", "--gorilla", what, "Paul O'Higgins", tarball, md5, sha), encoding="utf-8")
     print("  wrote data/gorilla_landmarks.LICENSE (GPL-2 notice)")
     ensure_gpl2(download_dir, skip)
 
@@ -490,14 +541,17 @@ Written by `{SCRIPT} --leaves` on {now_iso()}.
 
 - **Outlines of Swedish leaves**, {authors}. figshare, DOI {doi},
   <https://figshare.com/articles/dataset/Outlines_of_Swedish_leaves/14551005>.
-  Licence: **{lic}** (<https://creativecommons.org/licenses/by/4.0/>).
+  License: **{lic}** (<{LEAVES_LICENSE_URL}>).
   figshare's description: "A CSV containing the x and y coordinates of 440 leaf outlines extracted
   from images found in the Swedish Leaf Dataset. All outlines have been scaled to +-1.5 in x and y
   direction, and each outline has 150 points."
-- The outlines were traced by those authors from the **Swedish Leaf dataset** of Oskar J. O. Söderkvist
-  (2001), *Computer vision classification of leaves from Swedish trees*, MSc thesis, Linköping University
-  (<https://www.cvl.isy.liu.se/en/research/datasets/swedish-leaf/>; the author's Zenodo copy,
-  record 19663514, is CC BY 4.0; the Linköping page states no terms).
+- The outlines were extracted by those authors (figshare's wording; the method is not described) from the
+  photographs of the **Swedish Leaf dataset** of Oskar J. O. Söderkvist (2001), *Computer vision
+  classification of leaves from Swedish trees*, MSc thesis, Linköping University
+  (<https://www.cvl.isy.liu.se/en/research/datasets/swedish-leaf/>). The Linköping page states no terms.
+  A Zenodo record listing Söderkvist as creator (19663514, CC BY 4.0, deposited 2026-04-20; uploader not
+  identified) carries the photographs under CC BY 4.0; the license chain for the underlying photographs
+  rests on that record, which was not verified to come from the author.
 - File downloaded: `{LEAVES_FILE_NAME}`, md5 {md5}, sha256 {sha}.
 
 ## What the CSV contains
@@ -513,7 +567,8 @@ end in {closing_dup} of {len(outlines)} outlines (a closed polygon written with 
 1. Rows grouped by `indexNumber`, points sorted by `pointOrder`, the repeated closing vertex dropped.
 2. Each closed outline resampled to **{n_points} points equally spaced along its arc length**
    (`shapekit.contours.resample_by_arclength(points, {n_points}, closed=True)`, linear interpolation along
-   the polygon; the start point is the file's first point).  Coordinates are otherwise unchanged
+   the polygon; the start point is the file's first point; the lab later re-roots each outline at the
+   cyclic shift that best matches the mean, see chapter 10).  Coordinates are otherwise unchanged
    (still within ±1.5).
 3. Stored as `points` ({points.shape[0]}, {n_points}, 2) float64, `labels` (0–{len(classes) - 1}, = speciesNumber − 1),
    `classes` (species names in speciesNumber order), `names` (indexName) and `species_number`.
@@ -558,25 +613,37 @@ def fetch_rbc(skip: bool, n_points: int) -> None:
     print(RBC_NOTICE)
     LOCAL.mkdir(parents=True, exist_ok=True)
     gitignore = (ROOT / ".gitignore").read_text(encoding="utf-8") if (ROOT / ".gitignore").exists() else ""
-    if "data/_local" not in gitignore:
+    if not gitignore_covers(gitignore, "data/_local"):
         raise SystemExit("data/_local/ is not in .gitignore; refusing to download CC BY-NC-ND data into the repository")
     if RBC_ZIP.exists() and skip:
         print(f"  reusing {RBC_ZIP} (--skip-download)")
     else:
         download(RBC_URL, RBC_ZIP, md5=RBC_MD5, resume=True)
-    report(RBC_ZIP, None if skip else RBC_MD5)
+    report(RBC_ZIP, RBC_MD5)             # always enforced, --skip-download or not
 
-    if any(RBC_DIR.rglob("erythrocytesIDB2")):
+    marker = RBC_DIR / ".unpacked-ok"     # written only after a complete extraction
+    if marker.exists():
         print(f"  {RBC_DIR} already unpacked")
     else:
+        if RBC_DIR.exists():
+            print(f"  {RBC_DIR} exists without the completion marker (interrupted unpack?); unpacking again")
+            shutil.rmtree(RBC_DIR)
         n = safe_extract_zip(RBC_ZIP, RBC_DIR)
+        marker.write_text(f"{n} files unpacked from {RBC_ZIP.name} (md5 {RBC_MD5}) on {now_iso()}\n", encoding="utf-8")
         print(f"  unpacked {n} files into {RBC_DIR}")
 
     # One outline per connected component of each per-class field mask of IDB2 and IDB3.
     # (erythrocytesIDB1's "individual cells" are 80 x 80 image crops, not masks, so they are not used.)
     points, labels, dbs, fields, areas = [], [], [], [], []
+    extraction_notes = [
+        f"outlines traced by {SCRIPT} --rbc from the per-class field masks of erythrocytesIDB2 and erythrocytesIDB3 "
+        f"(erythrocytesIDB1's single-cell crops are images, not masks, and are not used): connected components of "
+        f"each mask (pixel > {RBC_THRESHOLD}, holes filled), border-touching components and blobs under "
+        f"{RBC_MIN_ABS_AREA} px dropped, components kept when their area is within [{RBC_AREA_RANGE[0]}, "
+        f"{RBC_AREA_RANGE[1]}] x the median area of their database, outer contour resampled to {n_points} points "
+        f"by arc length"]
     for db in ("erythrocytesIDB2", "erythrocytesIDB3"):
-        roots = [p for p in RBC_DIR.rglob(db) if p.is_dir()]
+        roots = sorted(p for p in RBC_DIR.rglob(db) if p.is_dir())
         if not roots:
             raise SystemExit(f"{db} not found under {RBC_DIR}")
         field_dirs = sorted(p for p in roots[0].iterdir() if p.is_dir())
@@ -613,14 +680,18 @@ def fetch_rbc(skip: bool, n_points: int) -> None:
             fields.append(field)
             areas.append(area)
             kept[RBC_CLASSES[k]] += 1
-        print(f"  {db}: {len(field_dirs)} fields (class masks missing: {dict(missing) or 'none'}); "
-              f"median component area {median:.0f} px, kept area in [{lo:.0f}, {hi:.0f}]; "
-              f"kept {dict(kept)}; dropped {dict(dropped) or 'none'}")
+        line = (f"{db}: {len(field_dirs)} fields (class masks missing: {dict(missing) or 'none'}); "
+                f"median component area {median:.0f} px, kept area in [{lo:.0f}, {hi:.0f}]; "
+                f"kept {dict(kept)}; dropped {dict(dropped) or 'none'}")
+        print(f"  {line}")
+        extraction_notes.append(line)
 
     pts = np.stack(points).astype(np.float64)
     lab = np.array(labels, dtype=np.int64)
+    extraction_notes.append("the class counts are this extraction's, not the database's cell counts")
     np.savez(RBC_NPZ, points=pts, labels=lab, classes=np.array(RBC_CLASSES), database=np.array(dbs, dtype=np.int64),
              field=np.array(fields), component_area=np.array(areas, dtype=np.float64),
+             preprocessing=np.array(extraction_notes),
              license=np.array("CC BY-NC-ND 4.0 -- local use only, never redistribute"))
     counts = Counter(lab.tolist())
     print(f"  wrote {RBC_NPZ} (LOCAL ONLY): points {pts.shape}; class counts "

@@ -22,6 +22,16 @@ SOFTWARE.
 
 ----------------------------------------------------------------------------
 
+The data files under data/ carry their own licenses, listed in ATTRIBUTION.md:
+data/brain_landmarks.npz and data/gorilla_landmarks.npz are GPL-2 (notices in
+data/brain_landmarks.LICENSE and data/gorilla_landmarks.LICENSE, full text in
+LICENSES/GPL-2.txt), data/leaves_outlines.npz is CC BY 4.0
+(data/leaves_outlines.ATTRIBUTION.md), data/mef_outlines_subset.npz is MIT
+(c) 2020 Kyu Sang Han (data/mef_outlines_subset.LICENSE) and BSD-3, and the
+C. elegans landmarks are BSD-3 under the license below.
+
+----------------------------------------------------------------------------
+
 Parts of this repository adapt material from "Shape Analysis 101"
 (https://github.com/uhlmanngroup/shapeanalysis101), which is distributed
 under the following license:

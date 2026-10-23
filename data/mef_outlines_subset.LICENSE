@@ -1,0 +1,32 @@
+Notice for data/mef_outlines_subset.npz
+
+The file holds 1,200 of the 5,377 mouse embryonic fibroblast outlines (120
+unordered points each) that Hugger & Uhlmann prepared for Shape Analysis 101
+(BSD-3; see LICENSE in this repository) from the Micropattern_MEF_LMNA_Image
+dataset by Kyu Sang Han, https://github.com/kukionfr/Micropattern_MEF_LMNA_Image,
+which is distributed under the MIT License reproduced below.  The outlines are
+redistributed here under that license and this notice; the subset was chosen
+with a fixed seed (600 wild-type, 600 LMNA-/-), converted from (row, col) to
+(x, y) and stored as float32 (see ATTRIBUTION.md).
+
+MIT License
+
+Copyright (c) 2020 Kyu Sang Han
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.

@@ -5,3 +5,5 @@ scikit-learn>=1.3
 pytest>=7
 # optional, only for shapekit.embed (chapter 08):
 # torch>=2.0
+# optional, the Phenotype Lab scripts (chapter 10): pip install -e ".[lab]"
+# torch>=2.0 onnx>=1.15 onnxruntime>=1.17 pyreadr>=0.5 xarray>=2023.1 rdata>=0.11 Pillow>=10 contourpy>=1.1 build>=1.0

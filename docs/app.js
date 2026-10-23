@@ -14,10 +14,16 @@ const CHAPTERS = [
   { id: '07', file: '07-splines.md', title: 'Shapes as smooth curves', blurb: 'The cubic B-spline bump, local control, interpolation, and the Gram matrix.' },
   { id: '08', file: '08-learned-embeddings.md', title: 'Learned embeddings', blurb: 'PointNet, supervised contrastive loss, temperature, and linear-probe evaluation.' },
   { id: '09', file: '09-field-notes.md', title: 'Field notes: bugs and how to avoid them', blurb: 'Lessons from the original tutorial: axis conventions, eval mode, unseeded splits, dead code.' },
+  // Chapter 10 is two things: the interactive lab (lab/, which the sidebar, cards and pager open) and its
+  // chapter text (#10, rendered like any other chapter and linked from the lab as "Read chapter 10").
+  { id: '10', file: '10-phenotype-lab.md', href: 'lab/', title: 'Phenotype Lab', blurb: 'Does shape alone classify the phenotype? Labeled datasets, three shape methods and a size-only baseline side by side, and a classifier you can drag.' },
   { id: 'glossary', file: 'glossary.md', title: 'Glossary', blurb: 'Every term, in one or two sentences.', aux: true },
   { id: 'cheatsheet', file: 'cheatsheet.md', title: 'Cheat sheet', blurb: 'All formulas on one page, with symbol legends and shapekit names.', aux: true },
   { id: 'references', file: 'references.md', title: 'References', blurb: 'Papers, datasets and upstream repositories.', aux: true },
 ];
+
+/* Links that leave docs/ (e.g. ../../ATTRIBUTION.md) cannot resolve on GitHub Pages; they go to the repository. */
+const REPO_URL = 'https://github.com/Daniel-Waiger/shape-analysis-field-guide';
 
 const $ = (sel, root = document) => root.querySelector(sel);
 const content = $('#content');
@@ -71,14 +77,18 @@ function buildSidebar() {
     const li = document.createElement('li');
     li.dataset.id = ch.id;
     const a = document.createElement('a');
-    a.href = '#' + ch.id;
+    a.href = ch.href || '#' + ch.id;
     a.innerHTML = `<span class="num">${ch.aux ? '—' : ch.id}</span><span>${ch.title}</span><span class="tick" aria-hidden="true">✓</span>`;
     li.appendChild(a);
     chapterList.appendChild(li);
   });
   updateProgress();
 }
-function visited() { return new Set(store.get('sa-visited', [])); }
+function visited() {
+  const v = new Set(store.get('sa-visited', []));
+  if (v.has('lab')) v.add('10'); // the Lab page (lab/) records itself under 'lab'
+  return v;
+}
 function markVisited(id) {
   const v = visited(); if (v.has(id)) return; v.add(id); store.set('sa-visited', [...v]); updateProgress();
 }
@@ -90,8 +100,8 @@ function updateProgress() {
   $('#progress-text').textContent = `${n} of ${CHAPTERS.length} read`;
 }
 function setActive(id) {
-  chapterList.querySelectorAll('a').forEach((a) => {
-    if (a.getAttribute('href') === '#' + id) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current');
+  chapterList.querySelectorAll('li[data-id] > a').forEach((a) => {
+    if (id !== null && a.parentElement.dataset.id === id) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current');
   });
 }
 
@@ -117,7 +127,8 @@ document.addEventListener('keydown', (e) => {
   const idx = CHAPTERS.findIndex((c) => c.id === state.chapter);
   const next = e.key === 'ArrowRight' ? idx + 1 : idx - 1;
   if (idx === -1) { if (e.key === 'ArrowRight') location.hash = CHAPTERS[0].id; return; }
-  if (next < 0) location.hash = ''; else if (next < CHAPTERS.length) location.hash = CHAPTERS[next].id;
+  if (next < 0) location.hash = '';
+  else if (next < CHAPTERS.length) { if (CHAPTERS[next].href) location.href = CHAPTERS[next].href; else location.hash = CHAPTERS[next].id; }
 });
 
 /* ---------- scroll progress ---------- */
@@ -251,8 +262,14 @@ function postProcess(root, chapterId) {
     const href = a.getAttribute('href');
     const m = /^(?:\.\/)?([0-9a-z-]+)\.md(?:#(.*))?$/i.exec(href);
     if (m) {
-      const target = CHAPTERS.find((c) => c.file.toLowerCase() === `${m[1]}.md`.toLowerCase());
-      if (target) a.setAttribute('href', `#${target.id}${m[2] ? '/' + m[2] : ''}`);
+      const target = CHAPTERS.find((c) => c.file && c.file.toLowerCase() === `${m[1]}.md`.toLowerCase());
+      // a plain link to the lab chapter opens the lab itself; a link to one of its sections renders the text
+      if (target) a.setAttribute('href', target.href && !m[2] ? target.href : `#${target.id}${m[2] ? '/' + m[2] : ''}`);
+    } else if (/^\.\.\/lab\/?(?:#.*)?$/.test(href)) {
+      a.setAttribute('href', href.replace(/^\.\.\//, ''));          // ../lab/ is lab/ when served from docs/
+    } else if (/^(?:\.\.\/){2,}/.test(href)) {
+      a.setAttribute('href', `${REPO_URL}/blob/main/${href.replace(/^(?:\.\.\/)+/, '')}`); // outside docs/: the repository
+      a.target = '_blank'; a.rel = 'noopener';
     } else if (/^#/.test(href) && chapterId) {
       a.setAttribute('href', `#${chapterId}/${href.slice(1)}`);
     } else if (/^https?:\/\//.test(href)) {
@@ -306,10 +323,11 @@ function buildToc(root, chapterId) {
 function buildPager(idx) {
   const prev = idx > 0 ? CHAPTERS[idx - 1] : null;
   const next = idx < CHAPTERS.length - 1 ? CHAPTERS[idx + 1] : null;
+  const hrefOf = (c) => (c.href ? c.href : '#' + c.id);
   const prevHtml = prev
-    ? `<a class="prev" href="#${prev.id}"><small>← Previous</small><span>${prev.title}</span></a>`
+    ? `<a class="prev" href="${hrefOf(prev)}"><small>← Previous</small><span>${prev.title}</span></a>`
     : `<a class="prev" href="#"><small>← Back to</small><span>Overview</span></a>`;
-  const nextHtml = next ? `<a class="next" href="#${next.id}"><small>Next →</small><span>${next.title}</span></a>` : '';
+  const nextHtml = next ? `<a class="next" href="${hrefOf(next)}"><small>Next →</small><span>${next.title}</span></a>` : '';
   pager.innerHTML = prevHtml + nextHtml;
 }
 
@@ -372,8 +390,8 @@ function renderLanding() {
   toc.hidden = true; toc.removeAttribute('data-has-items');
   const v = visited();
   const cards = CHAPTERS.map((c) => `
-    <a class="card ${v.has(c.id) ? 'visited' : ''}" href="#${c.id}">
-      <span class="num">${c.aux ? 'Appendix' : 'Chapter ' + c.id}</span>
+    <a class="card ${v.has(c.id) ? 'visited' : ''}${c.href ? ' card-lab' : ''}" href="${c.href ? c.href : '#' + c.id}">
+      <span class="num">${c.aux ? 'Appendix' : 'Chapter ' + c.id}${c.href ? ' · interactive' : ''}</span>
       <span class="title">${c.title}</span>
       <span class="blurb">${c.blurb}</span>
     </a>`).join('');
@@ -432,6 +450,14 @@ async function renderChapter(id, anchor) {
     if (state.chapter !== id) return; // navigated away while loading
     content.innerHTML = html;
     try { postProcess(content, id); } catch (e) { console.warn('post-process', e); }
+    if (ch.href) {
+      // the chapter text of the lab: say where the interactive page is
+      const note = document.createElement('p'); note.className = 'lab-callout';
+      note.innerHTML = `<a class="lab-open" href="${ch.href}">Open the Phenotype Lab →</a><span>This chapter reads the lab's numbers out loud; the lab itself is the interactive page.</span>`;
+      const h1 = content.querySelector('h1');
+      const lede = h1 && h1.nextElementSibling && h1.nextElementSibling.tagName === 'BLOCKQUOTE' ? h1.nextElementSibling : h1;
+      if (lede) lede.insertAdjacentElement('afterend', note); else content.prepend(note);
+    }
     renderMath(content);
     buildToc(content, id);
     buildPager(idx);

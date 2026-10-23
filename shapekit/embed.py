@@ -65,6 +65,7 @@ __all__ = [
     "center_point_clouds",
     "tutorial_center_bug",
     "preprocess_points",
+    "rms_radius",
     "InputTransform2d",
     "PointNet",
     "SupConLoss",
@@ -140,7 +141,19 @@ def tutorial_center_bug(points):
     return np.swapaxes(damaged, -1, -2)
 
 
-def preprocess_points(points, scale=None):
+def rms_radius(points):
+    """Root-mean-square distance of the points from their centroid, per cloud.
+
+    ``(N, 2)`` → a float; ``(K, N, 2)`` → ``(K,)``.  This is the centroid size
+    of chapter 02 divided by ``sqrt(N)``; a cloud with ``rms_radius == 1`` has
+    unit "size" in that sense.
+    """
+    centered = center_point_clouds(points)
+    r = np.sqrt(np.mean(np.sum(centered**2, axis=-1), axis=-1))
+    return float(r) if np.ndim(r) == 0 else r
+
+
+def preprocess_points(points, scale=None, normalize_size=False):
     """Center each cloud and divide all of them by one shared scale.
 
     Returns ``(prepared, scale)`` where ``prepared = center(points) / scale``.
@@ -151,11 +164,20 @@ def preprocess_points(points, scale=None):
       ``scale`` is ``None`` it is set to the root-mean-square distance of
       points from their centroid over the given clouds, which puts the
       coordinates in a comfortable range of about ±3 for the network.
+    * ``normalize_size=True`` first divides **each cloud by its own RMS
+      radius** (:func:`rms_radius`), so that every cloud has unit size and the
+      network cannot see how large a cell was (the Phenotype Lab's "shape
+      alone" setting, chapter 10).  The shared ``scale`` is then 1 by
+      construction (and is still computed and returned, so that the two
+      settings go through the same code).
 
     Pass the ``scale`` returned on the training cells when preparing other
     cells, so that all cells are measured with the same ruler.
     """
     centered = center_point_clouds(points)
+    if normalize_size:
+        r = np.sqrt(np.mean(np.sum(centered**2, axis=-1), axis=-1, keepdims=True))[..., None]
+        centered = centered / np.where(r > 0, r, 1.0).astype(np.float32)
     if scale is None:
         scale = float(np.sqrt(np.mean(np.sum(centered**2, axis=-1))))
         if not scale > 0:
@@ -273,10 +295,13 @@ class PointNet(_Module):
     ``forward(points)`` takes ``(B, N, 2)`` and returns ``(projection, embedding)``.
     ``input_transform=True`` adds the optional 2×2 :class:`InputTransform2d`
     before the first layer. Defaults (``embed_dim=256, proj_dim=64``) give about
-    0.9 M weights, comfortable on a laptop CPU.
+    0.9 M weights, comfortable on a laptop CPU.  ``normalize_size=True`` makes
+    :meth:`embed` divide every cloud by its own RMS radius before the shared
+    ``input_scale`` (see :func:`preprocess_points`); the flag is stored in the
+    ``state_dict`` as the buffer ``per_cloud_norm`` so that saved weights carry it.
     """
 
-    def __init__(self, embed_dim=256, proj_dim=64, input_transform=False):
+    def __init__(self, embed_dim=256, proj_dim=64, input_transform=False, normalize_size=False):
         _require_torch("PointNet")
         super().__init__()
         self.embed_dim = int(embed_dim)
@@ -298,6 +323,12 @@ class PointNet(_Module):
         # The scale used by preprocess_points at training time, stored with the
         # weights so that embed() prepares new cells with the same ruler.
         self.register_buffer("input_scale", torch.tensor(1.0))
+        # 1.0 when embed() divides each cloud by its own RMS radius first (chapter 10)
+        self.register_buffer("per_cloud_norm", torch.tensor(1.0 if normalize_size else 0.0))
+
+    @property
+    def normalize_size(self) -> bool:
+        return bool(float(self.per_cloud_norm) > 0.5)
 
     def per_point_features(self, points):
         """The ``(B, 1024, N)`` features *before* max-pooling (for figures)."""
@@ -321,13 +352,14 @@ class PointNet(_Module):
 
         Runs in eval mode with no gradients and restores the previous mode.
         With ``preprocess=True`` (default) the clouds are centred and divided by
-        the stored ``input_scale`` first, exactly as during training.
+        the stored ``input_scale`` first, exactly as during training (each cloud
+        by its own RMS radius first when ``normalize_size`` is set).
         """
         points = np.asarray(points, dtype=np.float32)
         if points.ndim == 2:
             points = points[None]
         if preprocess:
-            points, _ = preprocess_points(points, scale=float(self.input_scale))
+            points, _ = preprocess_points(points, scale=float(self.input_scale), normalize_size=self.normalize_size)
         was_training = self.training
         self.eval()
         device = self.input_scale.device
@@ -460,7 +492,7 @@ class MEFPointDataset(_Dataset):
 
 def train_pointnet(points, labels, epochs=30, batch_size=64, lr=1e-3, seed=0, device="cpu", log=None,
                    val_fraction=0.25, temperature=0.07, embed_dim=256, proj_dim=64, weight_decay=1e-4,
-                   input_transform=False, augment=False):
+                   input_transform=False, augment=False, select_fraction=0.0, normalize_size=False):
     """Train a :class:`PointNet` with :class:`SupConLoss` and keep the best weights.
 
     ``points`` is ``(K, N, 2)`` raw coordinates (points are rows), ``labels`` is
@@ -471,7 +503,9 @@ def train_pointnet(points, labels, epochs=30, batch_size=64, lr=1e-3, seed=0, de
     2. split into train / validation with ``sklearn.train_test_split``,
        stratified by class and seeded (the split is the same on every run);
     3. centre every cloud over the **points** axis and divide by one scale
-       computed on the training cells (:func:`preprocess_points`);
+       computed on the training cells (:func:`preprocess_points`; with
+       ``normalize_size=True`` each cloud is first divided by its own RMS
+       radius, so that size cannot be learned);
     4. for each epoch call ``model.train()`` first, then run the batches;
     5. validate with ``model.eval()`` and ``torch.no_grad()``: validation loss,
        plus a linear probe fitted on the training embeddings and scored on the
@@ -480,12 +514,25 @@ def train_pointnet(points, labels, epochs=30, batch_size=64, lr=1e-3, seed=0, de
        candidate; whenever ``val_acc`` improves the ``state_dict`` is
        ``copy.deepcopy``-ed.
 
+    With ``select_fraction > 0`` (the Phenotype Lab's protocol, chapter 10)
+    step 2 splits the training part once more, stratified and seeded, into
+    *fit* (``1 - select_fraction`` of it) and *select*: the network trains on
+    *fit* only, the per-epoch probe is fitted on the *fit* embeddings and
+    scored on *select* ("select_acc"), and the best epoch is chosen on that
+    number.  The validation split is then never looked at during training, so
+    it is a clean hold-out for whatever the caller measures afterwards.
+
     ``log`` is any callable taking a string (``print`` is fine); ``None`` is silent.
 
     Returns a dict: ``model`` (best weights loaded, in eval mode, ``input_scale``
     set), ``scale``, ``train_idx``, ``val_idx``, ``history`` (one dict per epoch
     including epoch 0: ``epoch, train_loss, val_loss, val_acc, seconds``),
     ``best_epoch``, ``best_val_acc``, ``untrained_val_acc``, ``seconds``.
+    With ``select_fraction > 0`` the history holds ``select_loss, select_acc``
+    instead of the ``val_*`` pair, the result has ``best_select_acc`` and
+    ``untrained_select_acc`` instead of ``best_val_acc`` / ``untrained_val_acc``,
+    and ``fit_idx`` / ``select_idx`` (sorted indices into ``points``) are added;
+    ``train_idx`` is still their union.  ``select_fraction`` is echoed back.
     """
     _require_torch("train_pointnet")
     from sklearn.model_selection import train_test_split
@@ -498,6 +545,8 @@ def train_pointnet(points, labels, epochs=30, batch_size=64, lr=1e-3, seed=0, de
         raise ValueError(f"points must be (K, N, 2), got {points.shape}")
     if len(points) != len(labels):
         raise ValueError("points and labels have different lengths")
+    if not 0.0 <= select_fraction < 1.0:
+        raise ValueError("select_fraction must be in [0, 1)")
 
     np.random.seed(seed)
     torch.manual_seed(seed)
@@ -507,47 +556,58 @@ def train_pointnet(points, labels, epochs=30, batch_size=64, lr=1e-3, seed=0, de
     train_idx, val_idx = train_test_split(idx, test_size=val_fraction, stratify=labels, random_state=seed)
     train_idx = np.sort(train_idx)
     val_idx = np.sort(val_idx)
+    selecting = select_fraction > 0
+    if selecting:
+        fit_idx, select_idx = train_test_split(train_idx, test_size=select_fraction, stratify=labels[train_idx],
+                                               random_state=seed)
+        fit_idx, select_idx = np.sort(fit_idx), np.sort(select_idx)
+    else:
+        fit_idx, select_idx = train_idx, None
+    tag = "select" if selecting else "val"
+    eval_idx = select_idx if selecting else val_idx
 
-    train_points, scale = preprocess_points(points[train_idx])      # scale from training cells only
-    val_points, _ = preprocess_points(points[val_idx], scale=scale)
-    train_labels, val_labels = labels[train_idx], labels[val_idx]
+    # the scale comes from the cells the network trains on, nothing else
+    fit_points, scale = preprocess_points(points[fit_idx], normalize_size=normalize_size)
+    eval_points, _ = preprocess_points(points[eval_idx], scale=scale, normalize_size=normalize_size)
+    fit_labels, eval_labels = labels[fit_idx], labels[eval_idx]
 
-    model = PointNet(embed_dim=embed_dim, proj_dim=proj_dim, input_transform=input_transform).to(device)
+    model = PointNet(embed_dim=embed_dim, proj_dim=proj_dim, input_transform=input_transform,
+                     normalize_size=normalize_size).to(device)
     model.input_scale.fill_(scale)
     criterion = SupConLoss(temperature=temperature)
     optimizer = torch.optim.Adam(model.parameters(), lr=lr, weight_decay=weight_decay)
 
-    dataset = MEFPointDataset(train_points, train_labels, augment=augment, seed=seed)
+    dataset = MEFPointDataset(fit_points, fit_labels, augment=augment, seed=seed)
     loader_gen = torch.Generator()
     loader_gen.manual_seed(seed)
     loader = DataLoader(dataset, batch_size=batch_size, shuffle=True, drop_last=len(dataset) > batch_size,
                         generator=loader_gen, num_workers=0)
-    train_t = torch.as_tensor(train_points, device=device)
-    val_t = torch.as_tensor(val_points, device=device)
-    val_labels_t = torch.as_tensor(val_labels, device=device)
+    fit_t = torch.as_tensor(fit_points, device=device)
+    eval_t = torch.as_tensor(eval_points, device=device)
+    eval_labels_t = torch.as_tensor(eval_labels, device=device)
 
     def evaluate():
         # eval mode: BatchNorm uses its running statistics; no_grad: no autograd bookkeeping
         model.eval()
         with torch.no_grad():
-            _, train_emb = model(train_t)
-            val_proj, val_emb = model(val_t)
+            _, fit_emb = model(fit_t)
+            eval_proj, eval_emb = model(eval_t)
             # the loss depends on the batch size (ln(B-1) when nothing is learned), so
-            # score the validation cells in chunks of the training batch size
-            chunks = [(criterion(val_proj[i:i + batch_size], val_labels_t[i:i + batch_size]).item())
-                      for i in range(0, len(val_idx), batch_size) if i + 2 <= len(val_idx)]
-            val_loss = float(np.mean(chunks))
-        acc = _holdout_probe_accuracy(train_emb.cpu().numpy(), train_labels, val_emb.cpu().numpy(), val_labels)
-        return val_loss, acc
+            # score the evaluation cells in chunks of the training batch size
+            chunks = [(criterion(eval_proj[i:i + batch_size], eval_labels_t[i:i + batch_size]).item())
+                      for i in range(0, len(eval_idx), batch_size) if i + 2 <= len(eval_idx)]
+            eval_loss = float(np.mean(chunks))
+        acc = _holdout_probe_accuracy(fit_emb.cpu().numpy(), fit_labels, eval_emb.cpu().numpy(), eval_labels)
+        return eval_loss, acc
 
     history = []
-    val_loss, val_acc = evaluate()
-    history.append({"epoch": 0, "train_loss": float("nan"), "val_loss": val_loss, "val_acc": val_acc,
+    eval_loss, eval_acc = evaluate()
+    history.append({"epoch": 0, "train_loss": float("nan"), f"{tag}_loss": eval_loss, f"{tag}_acc": eval_acc,
                     "seconds": time.perf_counter() - t_start})
-    best_acc, best_epoch = val_acc, 0
+    best_acc, best_epoch = eval_acc, 0
     best_state = copy.deepcopy(model.state_dict())  # a snapshot, not a reference
     if log is not None:
-        log(f"epoch   0  untrained   val_loss {val_loss:.3f}  val_acc {val_acc:.3f}")
+        log(f"epoch   0  untrained   {tag}_loss {eval_loss:.3f}  {tag}_acc {eval_acc:.3f}")
 
     for epoch in range(1, epochs + 1):
         model.train()  # back to training mode every epoch (BatchNorm learns batch statistics)
@@ -564,26 +624,32 @@ def train_pointnet(points, labels, epochs=30, batch_size=64, lr=1e-3, seed=0, de
             n_batches += 1
         train_loss = running / max(n_batches, 1)
 
-        val_loss, val_acc = evaluate()
-        history.append({"epoch": epoch, "train_loss": train_loss, "val_loss": val_loss, "val_acc": val_acc,
+        eval_loss, eval_acc = evaluate()
+        history.append({"epoch": epoch, "train_loss": train_loss, f"{tag}_loss": eval_loss, f"{tag}_acc": eval_acc,
                         "seconds": time.perf_counter() - t_start})
-        if val_acc > best_acc:
-            best_acc, best_epoch = val_acc, epoch
+        if eval_acc > best_acc:
+            best_acc, best_epoch = eval_acc, epoch
             best_state = copy.deepcopy(model.state_dict())
         if log is not None:
-            log(f"epoch {epoch:3d}  train_loss {train_loss:.3f}  val_loss {val_loss:.3f}  "
-                f"val_acc {val_acc:.3f}  ({history[-1]['seconds']:.0f} s)")
+            log(f"epoch {epoch:3d}  train_loss {train_loss:.3f}  {tag}_loss {eval_loss:.3f}  "
+                f"{tag}_acc {eval_acc:.3f}  ({history[-1]['seconds']:.0f} s)")
 
     model.load_state_dict(best_state)
     model.eval()
-    return {
+    result = {
         "model": model,
         "scale": scale,
         "train_idx": train_idx,
         "val_idx": val_idx,
         "history": history,
         "best_epoch": best_epoch,
-        "best_val_acc": best_acc,
-        "untrained_val_acc": history[0]["val_acc"],
+        f"best_{tag}_acc": best_acc,
+        f"untrained_{tag}_acc": history[0][f"{tag}_acc"],
+        "select_fraction": float(select_fraction),
+        "normalize_size": bool(normalize_size),
         "seconds": time.perf_counter() - t_start,
     }
+    if selecting:
+        result["fit_idx"] = fit_idx
+        result["select_idx"] = select_idx
+    return result

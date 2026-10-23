@@ -18,6 +18,21 @@ dependencies = [
 
 [project.optional-dependencies]
 embed = ["torch>=2.0"]
+# everything scripts/fetch_datasets.py, scripts/run_lab.py and scripts/build_lab_wheel.sh need
+# (the Phenotype Lab, chapter 10): torch + onnx for the PointNet and its export, onnxruntime to
+# verify it, pyreadr/xarray (or rdata) to read the R package's .rda files, Pillow + contourpy for
+# the red-cell masks, build for the Pyodide wheel.
+lab = [
+    "torch>=2.0",
+    "onnx>=1.15",
+    "onnxruntime>=1.17",
+    "pyreadr>=0.5",
+    "xarray>=2023.1",
+    "rdata>=0.11",
+    "Pillow>=10",
+    "contourpy>=1.1",
+    "build>=1.0",
+]
 dev = ["pytest>=7"]
 
 [tool.setuptools]
