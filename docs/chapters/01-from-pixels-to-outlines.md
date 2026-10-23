@@ -40,6 +40,13 @@ $$
 
 The tutorial used $N = 20$ for its demonstration worm; the dataset in Chapter 02 onward uses $N = 12$. [Inference] The 12-point models in the dataset have segment lengths varying by only about 2 % within each worm, so they were made this way.
 
+Here is the whole route on one real worm, with the numbers `shapekit` gets on it.
+
+![Five panels: a BBBC010 brightfield crop, the ground-truth mask of worm B07_06, its skeleton, 12 landmarks at equal arc length, and a cubic B-spline through them on the image](../figures/01_real_pipeline.png)
+*One real BBBC010 worm, B07_06 (well B07, ampicillin-treated, live): brightfield image → its ground-truth per-worm mask (1,212 pixels) → skeleton (114 pixels, 2 tips) → 12 landmarks at equal arc length (gold: landmark 1, an arbitrary tip) → cubic B-spline through them. Made by `scripts/make_sample_images.py`; the synthetic figure at the top is kept for the cell case, a closed outline traced from a mask.*
+
+This is the tutorial's demonstration worm (the same 1,212-pixel mask). `shapekit.contours.skeletonize` (Zhang–Suen thinning) leaves 114 skeleton pixels where the tutorial's skeletonization left about 104. scikit-image's `skeletonize` (version 0.26) gives exactly 104 on the same mask, so the mask is not the cause; [Inference] the difference is the thinning algorithm.
+
 ## Three representations
 
 ![The same worm shown as 12 landmarks, as a cloud of 120 unordered points, and as a smooth curve](../figures/01_representations.png)
@@ -106,6 +113,6 @@ The total arc length is 3.414, so the midpoint is at distance 1.707. Pixel $(2,1
 
 ## Credits
 
-Adapted from notebook 1 (*Data Preparation*) of *Shape Analysis 101* by Johannes Hugger and Virginie Uhlmann (Uhlmann group, EMBL-EBI, 2021; BSD-3): the mask → contour → skeleton → arc-length → spline pipeline and the *C. elegans* / MEF examples are theirs; the explanations, figures and `shapekit.contours` are new. Contour tracing follows scikit-image's `find_contours`; thinning is the Zhang–Suen algorithm (1984).
+Adapted from notebook 1 (*Data Preparation*) of *Shape Analysis 101* by Johannes Hugger and Virginie Uhlmann (Uhlmann group, EMBL-EBI, 2021; BSD-3): the mask → contour → skeleton → arc-length → spline pipeline and the *C. elegans* / MEF examples are theirs; the explanations, figures and `shapekit.contours` are new. Contour tracing follows scikit-image's `find_contours`; thinning is the Zhang–Suen algorithm (1984). The real worm in the pipeline figure is from the Broad Bioimage Benchmark Collection set BBBC010 (<https://bbbc.broadinstitute.org/BBBC010>; Ljosa, Sokolnicki & Carpenter 2012, *Nature Methods* 9:637; images by Fred Ausubel), released under CC0; image `1649_1109_0003_Amp5-1_B_20070424_B07_w2_*.tif` and per-worm ground-truth mask `B07_06_ground_truth.png` (<https://creativecommons.org/publicdomain/zero/1.0/>; full credit in `docs/lab/data/images/celegans/CREDIT.md`).
 
 **Next:** [02 · Preshape: removing position and size](02-preshape.md)

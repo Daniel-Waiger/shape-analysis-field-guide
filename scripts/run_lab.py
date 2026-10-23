@@ -11,6 +11,9 @@ LAB_SPEC.md and writes
                                    ``data/`` files, for the page's Pyodide panel
 
 Nothing on the page is typed in by hand: every number comes from here.
+A dataset's registry ``caveats`` (e.g. the MEF genotype/substrate confound)
+go into its JSON (``caveats``) and ``index.json`` (``has_caveat``); for mef
+the JSON also carries the display-only ``roundness_baseline`` diagnostic.
 
 Determinism.  The classical methods are deterministic for a given seed
 (default 0) on any machine.  The PointNet results are deterministic for a
@@ -184,6 +187,10 @@ def run_one(dataset_id: str, out: Path, args: argparse.Namespace, log) -> dict:
             row[name + "_sd"] = block.get("accuracy_sd")
         else:
             row[name] = block.get("status") if isinstance(block, dict) else None
+    if isinstance(doc.get("roundness_baseline"), dict):
+        row["roundness"] = doc["roundness_baseline"]["accuracy"]
+    if doc.get("caveats"):
+        row["caveat"] = "yes"
     pn = doc["methods"].get("pointnet_probe", {})
     if isinstance(pn, dict) and "accuracy" in pn:
         row["pointnet_seconds"] = doc.get("timing", {}).get("seconds", {}).get("pointnet_probe")
@@ -200,7 +207,8 @@ def print_table(rows: list[dict]) -> None:
             ("spline_lr", "spline_lr", "{:>14}"), ("size_lr", "size_lr", "{:>14}"),
             ("pointnet", "pointnet_probe", "{:>9}"), ("select", "pointnet_select", "{:>7}"),
             ("untrained", "pointnet_untrained", "{:>9}"), ("epochs", "pointnet_epochs", "{:>6}"),
-            ("pn s", "pointnet_seconds", "{:>6}")]
+            ("pn s", "pointnet_seconds", "{:>6}"), ("roundness", "roundness", "{:>9}"),
+            ("caveat", "caveat", "{:>6}")]
     print()
     print("  ".join(fmt.format(title) for title, _, fmt in cols))
     for row in rows:
@@ -221,7 +229,7 @@ def print_table(rows: list[dict]) -> None:
             cells.append(fmt.format(s))
         print("  ".join(cells))
     print("  classical: pooled 5-fold CV ± sd over folds; pointnet: 25 % hold-out (select = the 20 % slice that "
-          "chose the epoch); size_lr is a baseline, never a headline")
+          "chose the epoch); size_lr is a baseline, never a headline; roundness = display-only diagnostic (mef)")
     print()
 
 

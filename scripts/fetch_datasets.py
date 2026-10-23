@@ -3,7 +3,7 @@
 
 Every array this script writes is traced back to a download whose size,
 MD5 and SHA-256 are printed, and every dataset gets a notice file next to
-it saying where it came from and under which licence.  Nothing from the
+it saying where it came from and under which license.  Nothing from the
 downloads is ever executed: tarballs, zips, CSV and ``.rda`` files are
 read as data with plain Python readers, and the download folders are
 never put on ``sys.path`` (the script is safe under ``python -I``).
@@ -13,6 +13,7 @@ Run from the repository root::
     python scripts/fetch_datasets.py --brain --gorilla --leaves      # redistributable
     python scripts/fetch_datasets.py --rbc                           # local only
     python scripts/fetch_datasets.py --all
+    python scripts/fetch_datasets.py --images celegans mef            # original images, local only
 
 What each flag produces (see LAB_SPEC.md and ATTRIBUTION.md):
 
@@ -38,10 +39,29 @@ What each flag produces (see LAB_SPEC.md and ATTRIBUTION.md):
     (labels 0 = circular, 1 = elongated, 2 = other).  Never commit or publish
     anything under ``data/_local/``.
 
+``--images celegans|mef|leaves|rbc|all``
+    **Local only.**  The original *images* behind the datasets, into
+    ``data/_local/images/<id>/`` (git-ignored, never committed); each set
+    prints its license and the attribution it requires and gets a
+    ``SOURCE.txt`` with the checksums.  ``celegans``: BBBC010 images zip and
+    both ground-truth zips (foreground, one mask per worm) from
+    data.broadinstitute.org (CC0).  ``mef``: a bounded subset (``--max-files``,
+    default 40 files, about 107 MB, never more than 150 MB) of the TIFFs of
+    github.com/kukionfr/Micropattern_MEF_LMNA_Image at a pinned commit (MIT ©
+    2020 Kyu Sang Han), the two fields the tutorial used first; every file is
+    checked against the SHA-256 in its Git LFS pointer.  ``leaves``: the
+    per-species zips of the Swedish Leaf dataset from the Linköping page
+    (``--species 5,7`` by default, the two smallest; ``--species all`` for
+    all 15, about 3.9 GB).  ``rbc``: nothing is downloaded; the already
+    fetched erythrocytesIDB tree (``--rbc``) is reported.
+    ``scripts/make_sample_images.py`` turns the celegans and mef originals
+    into the small web samples under ``docs/lab/data/images/``.
+
 Options: ``--download-dir`` (where the small downloads are kept; default
 ``data/_local/downloads``), ``--skip-download`` (reuse files that are already
 there without contacting the network; their pinned checksums are still
-enforced), ``--n-points`` (points per resampled outline, default 150).
+enforced), ``--n-points`` (points per resampled outline, default 150),
+``--max-files`` and ``--species`` (for ``--images``, see above).
 """
 
 from __future__ import annotations
@@ -476,7 +496,7 @@ def fetch_leaves(download_dir: Path, skip: bool, n_points: int) -> None:
     lic = (meta.get("license") or {}).get("name", "CC BY 4.0 (per the figshare record)")
     authors = ", ".join(a.get("full_name", "") for a in meta.get("authors", [])) or "Armand Leroi, Stephen Marsland, Arianna Salili-James"
     doi = meta.get("doi", "10.6084/m9.figshare.14551005")
-    print(f"  licence (figshare API): {lic}; authors: {authors}; DOI: {doi}")
+    print(f"  license (figshare API): {lic}; authors: {authors}; DOI: {doi}")
     csv_path = download(url, download_dir / LEAVES_FILE_NAME, md5=LEAVES_MD5, skip=skip)
     md5, sha = report(csv_path, LEAVES_MD5)
 
@@ -699,6 +719,324 @@ def fetch_rbc(skip: bool, n_points: int) -> None:
     print(RBC_NOTICE)
 
 
+# ---------------------------------------------------------------- original images (local only)
+IMAGES_DIR = LOCAL / "images"
+IMAGE_SETS = ("celegans", "mef", "leaves", "rbc")
+
+BBBC010_BASE = "https://data.broadinstitute.org/bbbc/BBBC010/"
+BBBC010_PAGE = "https://bbbc.broadinstitute.org/BBBC010"
+# name -> (sub-folder it is unpacked into, size in bytes, md5).  BBBC publishes no checksums; the
+# sizes are the server's Content-Length and the md5s are of the files as downloaded on 2026-10-23.
+BBBC010_FILES = OrderedDict([
+    ("BBBC010_v2_images.zip", ("images", 68389595, "ef94b142c6dbc64ffc2d90028b130305")),
+    ("BBBC010_v1_foreground.zip", ("foreground", 1097766, "1925b6a88a23431fd433a5c42d5e6da6")),
+    ("BBBC010_v1_foreground_eachworm.zip", ("foreground_eachworm", 2734642, "ae73910ed293397b4ea5082883d278b1")),
+])
+BBBC010_NOTICE = """
+  License: CC0 1.0.  BBBC010's page: "To the extent possible under law, the various
+  contributors of the imagesets have waived all copyright and related or neighboring
+  rights to BBBC010."  No attribution is legally required; the page asks for this
+  citation: "We used the C.elegans infection live/dead image set version 1 provided by
+  Fred Ausubel and available from the Broad Bioimage Benchmark Collection
+  [Ljosa et al., Nature Methods, 2012]."  (Ljosa, V., Sokolnicki, K. L. & Carpenter, A. E.
+  (2012) Annotated high-throughput microscopy image sets for validation. Nat. Methods 9:637.)
+"""
+
+MEF_OWNER_REPO = "kukionfr/Micropattern_MEF_LMNA_Image"
+MEF_COMMIT = "7cbe6676825d3389c66b1da1102a7ddc2fcaef4a"   # master on 2026-10-23
+MEF_API_TREE = f"https://api.github.com/repos/{MEF_OWNER_REPO}/git/trees/{MEF_COMMIT}?recursive=1"
+MEF_RAW = f"https://raw.githubusercontent.com/{MEF_OWNER_REPO}/{MEF_COMMIT}/"
+MEF_MEDIA = f"https://media.githubusercontent.com/media/{MEF_OWNER_REPO}/{MEF_COMMIT}/"
+MEF_FOLDERS = tuple(f"{p}/LMNA{g}{k}" for p in ("Control", "Circle", "Triangle") for g in ("++", "--") for k in (1, 2))
+# The two fields Shape Analysis 101 ships as wildtype/ and lmna_deficient/ raw_images/xy001c*.tif
+# (identified by their SHA-256, which equals the LFS oid of these paths): fetched first.
+MEF_TUTORIAL_FIELDS = ("Control/LMNA++1/xy001", "Circle/LMNA--1/xy001")
+MEF_MAX_BYTES = 150_000_000
+# The tutorial's outlines and instance mask for those fields (Shape Analysis 101, BSD-3), read by
+# scripts/make_sample_images.py; mef_data.npy is a pickled dict and is only ever opened with a
+# restricted unpickler that admits plain numpy arrays.
+TUTORIAL_COMMIT = "bfccc0cd35d5fec7a73d2b43c906d4199e02c9da"
+TUTORIAL_RAW = f"https://raw.githubusercontent.com/uhlmanngroup/shapeanalysis101/{TUTORIAL_COMMIT}/"
+MEF_TUTORIAL_FILES = OrderedDict([
+    ("data/MEF_LMNA/mef_data.npy", (10783452, "9748f2056fdede1a01847c1b40dac88a")),
+    ("data/MEF_LMNA/xy001c1_instances.h5", (6143968, "afad98f567939287fcc67271ff50e99f")),
+])
+MEF_NOTICE = """
+  License: MIT, Copyright (c) 2020 Kyu Sang Han.  The MIT notice ("The above copyright
+  notice and this permission notice shall be included in all copies or substantial
+  portions of the Software") must accompany every copy: the full text is saved next to
+  the images as LICENSE.  The repository's README names the paper the images were made
+  for (it says 2020): Phillip, Han, Chen, Wirtz & Wu, "A robust unsupervised machine-learning
+  method to quantify the morphological heterogeneity of cells and nuclei", Nature Protocols
+  16, 754-774 (2021), doi:10.1038/s41596-020-00432-x.  The README names no separate license
+  for the images; [Unverified] whether the author intended the MIT software license to
+  cover the image data.  Images: MEF LMNA++ (wild-type) and LMNA-- (lamin A/C deficient) on
+  Circle / Triangle micropatterns or unpatterned Control, in folders suffixed 1 and 2 (the
+  README does not say what the suffix means); c1 = phalloidin (actin), c2 = DAPI (nuclei).
+"""
+
+LEAVES_PAGE = "https://www.cvl.isy.liu.se/en/research/datasets/swedish-leaf/"
+# species number -> (name as on the Linköping page, zip size in bytes (Content-Length), md5 or None)
+LEAVES_ZIPS = OrderedDict([
+    (1, ("Ulmus carpinifolia", 250780097, "a2be49500d6719a152c86a5a321c72b6")), (2, ("Acer", 691147424, None)),
+    (3, ("Salix aurita", 238409222, None)), (4, ("Quercus", 144067810, None)),
+    (5, ("Alnus incana", 74427080, None)), (6, ("Betula pubescens", 213508706, None)),
+    (7, ("Salix alba 'Sericea'", 98867138, None)), (8, ("Populus tremula", 212801360, None)),
+    (9, ("Ulmus glabra", 335120681, None)), (10, ("Sorbus aucuparia", 581191233, None)),
+    (11, ("Salix sinerea", 126555720, None)), (12, ("Populus", 255321931, None)),
+    (13, ("Tilia", 189169741, None)), (14, ("Sorbus intermedia", 292517046, None)),
+    (15, ("Fagus silvatica", 180097468, None)),
+])
+LEAVES_DEFAULT_SPECIES = (5, 7)      # the two smallest zips (74 MB + 99 MB)
+LEAVES_IMAGE_NOTICE = """
+  License: the Linköping page states no terms.  A Zenodo record listing Söderkvist as
+  creator (19663514, CC BY 4.0, deposited 2026-04-20, uploader not identified) is the only
+  license statement found for the photographs.  Treat them as local-only (they are never
+  copied into the repository) and cite: Oskar J. O. Söderkvist, "Computer vision
+  classification of leaves from Swedish trees", Master's thesis, Linköping University, 2001.
+"""
+
+
+def _require_local_ignored() -> None:
+    gitignore = (ROOT / ".gitignore").read_text(encoding="utf-8") if (ROOT / ".gitignore").exists() else ""
+    if not gitignore_covers(gitignore, "data/_local"):
+        raise SystemExit("data/_local/ is not in .gitignore; refusing to download images into the repository")
+
+
+def _check_size(path: Path, size: int | None) -> None:
+    if size is not None and path.stat().st_size != size:
+        got = path.stat().st_size
+        path.unlink()
+        raise SystemExit(f"{path.name}: {got:,} bytes, expected {size:,}; the file was deleted, re-run to download it again")
+
+
+def _write_source(out_dir: Path, title: str, notice: str, lines: list[str]) -> None:
+    (out_dir / "SOURCE.txt").write_text(
+        f"{title}\nFetched by {SCRIPT} on {now_iso()} -- LOCAL ONLY (data/_local/ is git-ignored).\n"
+        f"{notice}\nFiles (size, md5, sha256):\n" + "\n".join(lines) + "\n", encoding="utf-8")
+
+
+def _report_line(path: Path, base: Path) -> str:
+    md5, sha, size = checksums(path)
+    return f"  {path.relative_to(base)}  {size:,} bytes  md5 {md5}  sha256 {sha}"
+
+
+def fetch_images_celegans(skip: bool) -> None:
+    print("[images: celegans] BBBC010, C. elegans infection live/dead image set (CC0)")
+    out = IMAGES_DIR / "celegans"
+    out.mkdir(parents=True, exist_ok=True)
+    lines = []
+    for name, (sub, size, md5) in BBBC010_FILES.items():
+        zpath = download(BBBC010_BASE + name, out / name, md5=md5, skip=skip)
+        _check_size(zpath, size)
+        report(zpath, md5)
+        lines.append(_report_line(zpath, out))
+        marker = out / sub / ".unpacked-ok"
+        if marker.exists():
+            print(f"  {out.relative_to(ROOT) / sub} already unpacked")
+        else:
+            if (out / sub).exists():
+                shutil.rmtree(out / sub)
+            n = safe_extract_zip(zpath, out / sub)
+            marker.write_text(f"{n} files from {name} ({checksums(zpath)[0]}) on {now_iso()}\n", encoding="utf-8")
+            print(f"  unpacked {n} files into {(out / sub).relative_to(ROOT)}")
+    for sub in ("images", "foreground", "foreground_eachworm"):
+        files = [p for p in (out / sub).rglob("*")
+                 if p.is_file() and not p.name.startswith(".") and ".svn" not in p.parts]
+        kinds = Counter(p.suffix.lower() for p in files)
+        print(f"  {sub}: {len(files)} files {dict(kinds)} (the zips also carry .svn/ metadata, ignored)")
+    _write_source(out, f"BBBC010 ({BBBC010_PAGE})", BBBC010_NOTICE, lines)
+    print(BBBC010_NOTICE)
+
+
+def _lfs_pointer(path: str) -> tuple[str, int] | None:
+    """Read the Git LFS pointer of ``path`` at the pinned commit: (sha256, size), None if absent."""
+    from urllib.parse import quote
+    try:
+        with _open(MEF_RAW + quote(path), timeout=60) as r:
+            text = r.read(1024).decode("utf-8", errors="replace")
+    except urllib.error.HTTPError as e:
+        if e.code == 404:
+            return None
+        raise
+    fields = dict(line.split(" ", 1) for line in text.strip().splitlines() if " " in line)
+    if not fields.get("version", "").startswith("https://git-lfs.github.com/spec/v1"):
+        raise SystemExit(f"{path}: expected a Git LFS pointer, got {text[:80]!r}")
+    oid = fields.get("oid", "")
+    if not oid.startswith("sha256:"):
+        raise SystemExit(f"{path}: LFS pointer without a sha256 oid")
+    return oid.split(":", 1)[1], int(fields["size"])
+
+
+def _mef_listing() -> set[str] | None:
+    """Every path at the pinned commit via the GitHub API, or None when the API is unreachable."""
+    import json
+    try:
+        with _open(MEF_API_TREE, {"Accept": "application/vnd.github+json"}, timeout=60) as r:
+            tree = json.loads(r.read().decode("utf-8"))
+    except Exception as e:  # noqa: BLE001 - rate limits, proxies: fall back to probing raw pointers
+        print(f"  GitHub API listing unavailable ({e}); probing raw.githubusercontent.com instead")
+        return None
+    if tree.get("truncated"):
+        print("  GitHub API listing is truncated; probing raw.githubusercontent.com instead")
+        return None
+    return {t["path"] for t in tree.get("tree", []) if t.get("type") == "blob"}
+
+
+def mef_candidates() -> list[str]:
+    """Field stems in fetch order: the tutorial's two fields, then xy001, xy002, ... round-robin
+    over the 12 folders (Control / Circle / Triangle x LMNA++ / LMNA-- x suffix 1 / 2)."""
+    order = list(MEF_TUTORIAL_FIELDS)
+    for i in range(1, 200):
+        for folder in MEF_FOLDERS:
+            stem = f"{folder}/xy{i:03d}"
+            if stem not in order:
+                order.append(stem)
+    return order
+
+
+def fetch_images_mef(skip: bool, max_files: int) -> None:
+    print(f"[images: mef] Micropattern_MEF_LMNA_Image @ {MEF_COMMIT[:12]} (MIT (c) 2020 Kyu Sang Han)")
+    if max_files < 2:
+        raise SystemExit("--max-files must be at least 2 (one field = c1 + c2)")
+    from urllib.parse import quote
+    out = IMAGES_DIR / "mef"
+    out.mkdir(parents=True, exist_ok=True)
+    lic = download(MEF_RAW + "LICENSE", out / "LICENSE", skip=skip)
+    if "Copyright (c) 2020 Kyu Sang Han" not in lic.read_text(encoding="utf-8", errors="replace"):
+        raise SystemExit(f"{lic} does not carry the expected MIT copyright line; refusing to continue")
+    listing = _mef_listing()
+    n_fields = max_files // 2
+    if max_files % 2:
+        print(f"  --max-files {max_files} is odd; fetching {n_fields} whole fields ({2 * n_fields} files)")
+    chosen, total, lines = [], 0, []
+    for stem in mef_candidates():
+        if len(chosen) == n_fields:
+            break
+        paths = [f"{stem}c1.tif", f"{stem}c2.tif"]
+        if listing is not None and not all(p in listing for p in paths):
+            continue
+        ptrs = [_lfs_pointer(p) for p in paths]
+        if any(p is None for p in ptrs):
+            continue
+        size = sum(s for _, s in ptrs)
+        if total + size > MEF_MAX_BYTES:
+            print(f"  stopping at {len(chosen)} fields: the next would pass {MEF_MAX_BYTES / 1e6:.0f} MB")
+            break
+        chosen.append((stem, paths, ptrs))
+        total += size
+    print(f"  {len(chosen)} fields, {2 * len(chosen)} files, {total / 1e6:.1f} MB")
+    for stem, paths, ptrs in chosen:
+        for path, (sha, size) in zip(paths, ptrs):
+            dest = out / path
+            if dest.exists() and checksums(dest)[1] == sha:
+                print(f"  reusing {path} (sha256 matches its LFS pointer)")
+            else:
+                if dest.exists():
+                    dest.unlink()
+                download(MEF_MEDIA + quote(path), dest)
+                _check_size(dest, size)
+                got = checksums(dest)[1]
+                if got != sha:
+                    dest.unlink()
+                    raise SystemExit(f"{path}: sha256 {got} differs from its LFS pointer {sha}; deleted")
+                print(f"  {path}: downloaded, sha256 matches its LFS pointer")
+            report(dest)
+            lines.append(_report_line(dest, out))
+    print("  the tutorial's outlines for these fields (Shape Analysis 101, BSD-3, Hugger & Uhlmann 2021):")
+    for rel, (size, md5) in MEF_TUTORIAL_FILES.items():
+        dest = download(TUTORIAL_RAW + rel, out / "tutorial" / Path(rel).name, md5=md5, skip=skip)
+        _check_size(dest, size)
+        report(dest, md5)
+        lines.append(_report_line(dest, out))
+    tutorial = [s for s, *_ in chosen if s in MEF_TUTORIAL_FIELDS]
+    print(f"  tutorial fields included: {tutorial or 'none'} (wildtype = {MEF_TUTORIAL_FIELDS[0]}, "
+          f"lmna_deficient = {MEF_TUTORIAL_FIELDS[1]})")
+    _write_source(out, f"Micropattern_MEF_LMNA_Image (https://github.com/{MEF_OWNER_REPO}, commit {MEF_COMMIT})",
+                  MEF_NOTICE, lines)
+    print(MEF_NOTICE)
+
+
+def parse_species(text: str) -> list[int]:
+    if text.strip().lower() == "all":
+        return list(LEAVES_ZIPS)
+    try:
+        nums = sorted({int(t) for t in text.replace(" ", "").split(",") if t})
+    except ValueError:
+        raise SystemExit(f"--species expects species numbers 1-15 separated by commas, or 'all'; got {text!r}") from None
+    bad = [n for n in nums if n not in LEAVES_ZIPS]
+    if bad or not nums:
+        raise SystemExit(f"--species: unknown species {bad or text!r}; valid: 1-15 (see {LEAVES_PAGE})")
+    return nums
+
+
+def fetch_images_leaves(skip: bool, species: list[int]) -> None:
+    print("[images: leaves] Swedish Leaf dataset, O. J. O. Söderkvist (2001), Linköping University")
+    print(LEAVES_IMAGE_NOTICE)
+    out = IMAGES_DIR / "leaves"
+    out.mkdir(parents=True, exist_ok=True)
+    total = sum(LEAVES_ZIPS[s][1] for s in species)
+    print(f"  species {species}: {total / 1e6:,.0f} MB of zips")
+    lines = []
+    for s in species:
+        name, size, md5 = LEAVES_ZIPS[s]
+        print(f"  species {s}: {name} ({size / 1e6:,.0f} MB)")
+        zpath = download(LEAVES_PAGE + f"leaf{s}.zip", out / f"leaf{s}.zip", md5=md5, skip=skip, resume=True)
+        _check_size(zpath, size)
+        report(zpath, md5)
+        lines.append(_report_line(zpath, out))
+        sub = out / f"leaf{s}"
+        marker = sub / ".unpacked-ok"
+        if marker.exists():
+            print(f"    {sub.relative_to(ROOT)} already unpacked")
+        else:
+            if sub.exists():
+                shutil.rmtree(sub)
+            n = safe_extract_zip(zpath, sub)
+            marker.write_text(f"{n} files from leaf{s}.zip on {now_iso()}\n", encoding="utf-8")
+            print(f"    unpacked {n} files into {sub.relative_to(ROOT)}")
+        files = [p for p in sub.rglob("*") if p.is_file() and not p.name.startswith(".")]
+        print(f"    {len(files)} files {dict(Counter(p.suffix.lower() for p in files))}")
+    _write_source(out, f"Swedish Leaf dataset ({LEAVES_PAGE})", LEAVES_IMAGE_NOTICE, lines)
+
+
+def report_images_rbc() -> None:
+    print("[images: rbc] erythrocytesIDB v2 (CC BY-NC-ND 4.0): nothing to download here")
+    print(RBC_NOTICE)
+    if not (RBC_DIR / ".unpacked-ok").exists():
+        print(f"  {RBC_DIR.relative_to(ROOT)} is not there yet: run `python {SCRIPT} --rbc` (594 MB, local only)")
+        return
+    files = [p for p in RBC_DIR.rglob("*") if p.is_file() and not p.name.startswith(".")]
+    per_db = Counter(next((part for part in p.relative_to(RBC_DIR).parts
+                           if part in ("erythrocytesIDB1", "erythrocytesIDB2", "erythrocytesIDB3")), "other")
+                     for p in files)
+    kinds = Counter(p.suffix.lower() for p in files)
+    print(f"  the images are already unpacked in {RBC_DIR.relative_to(ROOT)}: {len(files)} files {dict(kinds)}; "
+          f"per database {dict(sorted(per_db.items()))}")
+    print("  Cite: Marrero Fernández, P. D. et al., erythrocytesIDB, Universitat de les Illes Balears, Zenodo "
+          "18299474; IEEE J. Biomed. Health Inform. 19(4):1514-1525 (2015).  No images or derived coordinates "
+          "may be redistributed (NC, ND).")
+
+
+def fetch_images(which: list[str], skip: bool, max_files: int, species: list[int]) -> None:
+    _require_local_ignored()
+    sets = list(IMAGE_SETS) if "all" in which else [w for w in IMAGE_SETS if w in which]
+    for s in sets:
+        if s == "celegans":
+            fetch_images_celegans(skip)
+        elif s == "mef":
+            fetch_images_mef(skip, max_files)
+        elif s == "leaves":
+            fetch_images_leaves(skip, species)
+        elif s == "rbc":
+            report_images_rbc()
+    print(f"Images are under {IMAGES_DIR.relative_to(ROOT)}/ (git-ignored): never commit them.")
+    sampled = [s for s in sets if s in ("celegans", "mef")]
+    if sampled:
+        print(f"`python scripts/make_sample_images.py` builds the small redistributable samples from them "
+              f"({', '.join(sampled)}).")
+
+
 # ---------------------------------------------------------------- main
 def main(argv=None) -> int:
     p = argparse.ArgumentParser(description=__doc__.split("\n\n")[0], formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -711,11 +1049,20 @@ def main(argv=None) -> int:
     p.add_argument("--download-dir", type=Path, default=LOCAL / "downloads",
                    help="where the small downloads are kept (default data/_local/downloads, git-ignored)")
     p.add_argument("--n-points", type=int, default=150, help="points per resampled outline (leaves, rbc)")
+    p.add_argument("--images", nargs="+", choices=IMAGE_SETS + ("all",), metavar="SET",
+                   help="LOCAL ONLY: original images into data/_local/images/<set>/ "
+                        "(celegans, mef, leaves, rbc or all)")
+    p.add_argument("--max-files", type=int, default=40,
+                   help="--images mef: number of TIFFs (c1 + c2 per field; default 40, about 107 MB)")
+    p.add_argument("--species", default=",".join(map(str, LEAVES_DEFAULT_SPECIES)),
+                   help="--images leaves: species numbers 1-15, comma-separated, or 'all' "
+                        "(default 5,7: the two smallest zips)")
     a = p.parse_args(argv)
     if a.all:
         a.brain = a.gorilla = a.leaves = a.rbc = True
-    if not (a.brain or a.gorilla or a.leaves or a.rbc):
-        p.error("nothing to do: pass --brain, --gorilla, --leaves, --rbc or --all")
+    if not (a.brain or a.gorilla or a.leaves or a.rbc or a.images):
+        p.error("nothing to do: pass --brain, --gorilla, --leaves, --rbc, --all or --images SET")
+    species = parse_species(a.species) if a.images else []
     DATA.mkdir(exist_ok=True)
     a.download_dir.mkdir(parents=True, exist_ok=True)
     if a.brain:
@@ -726,6 +1073,8 @@ def main(argv=None) -> int:
         fetch_leaves(a.download_dir, a.skip_download, a.n_points)
     if a.rbc:
         fetch_rbc(a.skip_download, a.n_points)
+    if a.images:
+        fetch_images(a.images, a.skip_download, a.max_files, species)
     return 0
 
 

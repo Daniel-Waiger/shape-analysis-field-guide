@@ -43,6 +43,7 @@ from .contours import (
     arc_length,
     mask_to_contours,
     mask_to_landmarks,
+    order_loop,
     order_skeleton,
     resample_by_arclength,
     skeletonize,
@@ -60,7 +61,7 @@ __all__ = [
     "log_map", "procrustes_distance",
     "TangentPCA", "real_to_tangent", "tangent_to_real",
     "BSplineCurve", "basis_matrix", "cubic_bspline", "gram_matrix", "interpolation_filter",
-    "arc_length", "mask_to_contours", "mask_to_landmarks", "order_skeleton",
+    "arc_length", "mask_to_contours", "mask_to_landmarks", "order_loop", "order_skeleton",
     "resample_by_arclength", "skeletonize", "skeleton_endpoints",
     "load_celegans", "load_mef_subset",
 ]

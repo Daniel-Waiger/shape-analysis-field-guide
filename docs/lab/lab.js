@@ -10,12 +10,13 @@ import { mountPyodidePanel, pyodideOffered, PYODIDE_VERSION, PYODIDE_SIZE_ESTIMA
 
 /* ---------- registry metadata (names only; no numbers) ---------- */
 const REGISTRY = [
-  { id: 'celegans', title: 'C. elegans, live vs dead', representation: 'landmarks', short: 'Worms', fetch: null },
-  { id: 'mef', title: 'Mouse fibroblasts, wild-type vs LMNA−/−', representation: 'pointcloud', short: 'Fibroblasts', fetch: null },
-  { id: 'brain', title: 'Brain landmarks, schizophrenia vs control', representation: 'landmarks', short: 'Brain', fetch: 'python scripts/fetch_datasets.py --brain' },
-  { id: 'gorilla', title: 'Gorilla skulls, female vs male', representation: 'landmarks', short: 'Gorillas', fetch: 'python scripts/fetch_datasets.py --gorilla' },
-  { id: 'leaves', title: 'Leaf outlines, species', representation: 'outline', short: 'Leaves', fetch: 'python scripts/fetch_datasets.py --leaves' },
-  { id: 'rbc', title: 'Red blood cells, sickle-cell disease', representation: 'outline', short: 'Blood cells', fetch: 'python scripts/fetch_datasets.py --rbc' },
+  { id: 'celegans', title: 'C. elegans, live vs dead', representation: 'landmarks', short: 'Worms', fetch: null, images: 'manifest', objWord: 'worm' },
+  // titleNote: shown after the title on the dataset page (LAB_SPEC.md Round 3b: the MEF confound)
+  { id: 'mef', title: 'Mouse fibroblasts, wild-type vs LMNA−/−', representation: 'pointcloud', short: 'Fibroblasts', fetch: null, images: 'manifest', objWord: 'cell', titleNote: 'genotype confounded with substrate' },
+  { id: 'brain', title: 'Brain landmarks, schizophrenia vs control', representation: 'landmarks', short: 'Brain', fetch: 'python scripts/fetch_datasets.py --brain', images: 'none' },
+  { id: 'gorilla', title: 'Gorilla skulls, female vs male', representation: 'landmarks', short: 'Gorillas', fetch: 'python scripts/fetch_datasets.py --gorilla', images: 'none' },
+  { id: 'leaves', title: 'Leaf outlines, species', representation: 'outline', short: 'Leaves', fetch: 'python scripts/fetch_datasets.py --leaves', images: 'unverified' },
+  { id: 'rbc', title: 'Red blood cells, sickle-cell disease', representation: 'outline', short: 'Blood cells', fetch: 'python scripts/fetch_datasets.py --rbc', images: 'nc_nd' },
 ];
 /** The three shape methods the guide teaches, plus the size-only baseline (a baseline, never a headline). */
 const METHODS = [
@@ -127,7 +128,7 @@ document.querySelectorAll('[data-theme-toggle]').forEach((b) => b.addEventListen
 (() => { const v = new Set(store.get('sa-visited', [])); if (!v.has('lab')) { v.add('lab'); store.set('sa-visited', [...v]); } })();
 
 /* ---------- data ---------- */
-const state = { index: null, indexError: null, datasets: new Map(), method: new Map(), route: null, cleanups: [] };
+const state = { index: null, indexError: null, datasets: new Map(), manifests: new Map(), method: new Map(), route: null, cleanups: [] };
 async function loadJSON(path) {
   const res = await fetch(new URL(path, document.baseURI), { cache: 'no-cache' });
   if (!res.ok) throw new Error(`${path}: HTTP ${res.status}`);
@@ -168,6 +169,22 @@ function classSummary(classes, max = 4) {
   return `${classes.length} classes${ns.length ? ` (${Math.min(...ns)}–${Math.max(...ns)} each)` : ''}`;
 }
 const registryOf = (id) => REGISTRY.find((r) => r.id === id);
+/* ---------- caveats (a dataset JSON's `caveats`, index.json's `has_caveat`) ---------- */
+const caveatsOf = (ds) => (Array.isArray(ds?.caveats) ? ds.caveats.filter((c) => typeof c === 'string' && c.trim()) : []);
+/** The registry's note after a caveated dataset's title, as plain text ("" when there is none). */
+const titleNote = (id) => registryOf(id)?.titleNote || '';
+/** The title with its note, for document.title and the brand line. */
+const titleWithNote = (id, t) => (titleNote(id) ? `${t} (${titleNote(id)})` : t);
+const firstSentence = (t) => { const m = /^.*?[.!?](?=\s|$)/.exec(String(t || '').trim()); return m ? m[0] : String(t || '').trim(); };
+/** The "!" marker: a visible badge with an accessible label. */
+function caveatMark(label) { return `<span class="caveat-mark" role="img" aria-label="${esc(label)}" title="${esc(label)}">!</span>`; }
+/** One sentence the home page can show for a caveated dataset: the JSON's first caveat sentence, else the registry note. */
+function caveatShort(id, ds) {
+  const c = caveatsOf(ds)[0];
+  if (c) return firstSentence(c);
+  const n = titleNote(id);
+  return n ? `${n.charAt(0).toUpperCase()}${n.slice(1)}.` : 'This dataset has a caveat; see its page.';
+}
 const shortName = (d) => registryOf(d.id)?.short || d.title.split(',')[0];
 const methodNA = (m) => m && (m.status === 'skipped' || m.status === 'not_applicable');
 const methodAvailable = (m) => m && !methodNA(m) && Number.isFinite(m.accuracy);
@@ -319,13 +336,16 @@ async function renderHome() {
     const a = h('a', { class: `card-ds ${d.status}${i === 0 && d.status === 'ready' ? ' featured' : ''}`, href: `#/${d.id}` }, cards);
     const th = h('div', { class: 'thumb' }, a); th.appendChild(glyph(d.representation, d.status !== 'ready'));
     const txt = h('div', { style: 'display:flex;flex-direction:column;gap:4px' }, a);
-    h('strong', { html: titleHtml(d.title) }, txt);
+    const strong = h('strong', { html: titleHtml(d.title) }, txt);
+    if (d.has_caveat) strong.insertAdjacentHTML('beforeend', ` ${caveatMark(`Caveat: ${caveatShort(d.id, null)}`)}`);
     const meta = h('span', { class: 'meta' }, txt);
     meta.textContent = d.status !== 'ready' ? `${REP_LABEL[d.representation] || d.representation}${d.classes?.length ? ' · ' + (d.classes.length > 4 ? d.classes.length + ' classes' : d.classes.join(' / ')) : ''} · [not run]`
       : `${thousands(d.n)} shapes · ${d.classes.length > 4 ? d.classes.length + ' classes' : d.classes.join(' / ') || '[not run]'}`;
     const pills = h('div', { class: 'pills' }, a);
     pills.innerHTML = pillStatus(d.status) + `<span class="pill rep">${esc(REP_LABEL[d.representation] || d.representation)}</span>`;
-    cardEls.set(d.id, { a, th, meta });
+    // the card's footnote: the registry note now (no layout shift), the JSON's first caveat sentence once loaded
+    const cav = d.has_caveat ? h('span', { class: 'card-caveat', html: `<span aria-hidden="true">!</span> ${esc(caveatShort(d.id, null))} See the caveat on its page.` }, a) : null;
+    cardEls.set(d.id, { a, th, meta, cav });
   });
   h('div', { class: 'card-own', html: `<strong>Your own masks</strong><span>Turn a folder of labeled masks into an npz in <code>data/</code> with <code>points</code> of shape (K, N, 2) and <code>labels</code> of shape (K,), add an entry to <code>DATASETS</code> in <code>shapekit/lab_datasets.py</code>, run <code>python scripts/run_lab.py --dataset &lt;id&gt;</code>, and the same panels appear here. <a href="../#10/add-your-own-masks">Chapter 10 has the recipe.</a></span>` }, cards);
 
@@ -349,7 +369,8 @@ async function renderHome() {
   list.forEach((d) => {
     const tr = h('tr', { class: d.status === 'ready' ? '' : 'row-muted' }, tbody);
     const td0 = h('td', {}, tr);
-    if (d.status === 'proposed') td0.innerHTML = titleHtml(d.title); else h('a', { href: `#/${d.id}`, html: titleHtml(d.title) }, td0);
+    if (d.status === 'proposed') td0.innerHTML = titleHtml(d.title); else h('a', { href: `#/${d.id}`, html: titleHtml(d.title), ...(d.has_caveat ? { 'aria-describedby': `lb-caveat-${d.id}` } : {}) }, td0);
+    if (d.has_caveat) td0.insertAdjacentHTML('beforeend', ` ${caveatMark('Caveat: see the note below the table')}`);
     const tdc = h('td', { class: 'muted' }, tr);
     tdc.textContent = d.status === 'proposed' ? '[not run]' : (d.classes.length > 4 ? `${d.classes.length} classes` : d.classes.join(' / ') || '[not run]');
     const cells = METHODS.map((m) => h('td', { class: `mono${m.baseline ? ' baseline' : ''}`, 'data-key': m.key, text: d.status === 'ready' ? '…' : (d.status === 'fetch_locally' ? '…' : '—') }, tr));
@@ -357,6 +378,13 @@ async function renderHome() {
     rowEls.set(d.id, { tr, tdc, cells, tdch });
   });
   scrollable(wrap, 'Leaderboard table');
+  // caveat footnotes (one per flagged row), filled with the JSON's caveat and roundness baseline once loaded
+  const cavFoot = new Map();
+  const cavList = list.filter((d) => d.has_caveat);
+  if (cavList.length) {
+    const cf = h('div', { class: 'footnotes caveat-notes' }, s3);
+    cavList.forEach((d) => cavFoot.set(d.id, h('p', { id: `lb-caveat-${d.id}`, class: 'caveat-foot', html: caveatFootHtml(d, null) }, cf)));
+  }
   const foot = h('div', { class: 'footnotes' }, s3);
   const notes = h('div', { class: 'notes' }, s3);
   notes.innerHTML = `
@@ -391,6 +419,8 @@ async function renderHome() {
       card.meta.innerHTML = `${thousands(ds.n)} ${ds.representation === 'pointcloud' ? 'cells' : 'shapes'} · ${ds.n_points ? ds.n_points + ' ' + (ds.representation === 'pointcloud' ? 'unordered points' : ds.representation === 'outline' ? 'outline points' : 'landmarks') + ' · ' : ''}${classSummary(ds.classes)}`;
     }
     if (ds.examples && ds.shapes_shown !== false) { card.th.innerHTML = ''; card.th.appendChild(cardThumb(ds)); }
+    if (cavFoot.has(d.id)) cavFoot.get(d.id).innerHTML = caveatFootHtml(d, ds);
+    if (card.cav && caveatsOf(ds).length) card.cav.innerHTML = `<span aria-hidden="true">!</span> ${esc(caveatShort(d.id, ds))} See the caveat on its page.`;
     // the best shape method: index.json names it; otherwise the maximum over the shape methods (never the baseline)
     let bestKey = typeof d.best_method === 'string' ? d.best_method : null;
     if (!bestKey) { let best = -1; SHAPE_METHODS.forEach((m) => { const r = ds.methods?.[m.key]; if (methodAvailable(r) && r.accuracy > best) { best = r.accuracy; bestKey = m.key; } }); }
@@ -532,13 +562,247 @@ function crumbsHtml(items) {
   return items.map(([text, href], i) => (i ? '<span aria-hidden="true">›</span>' : '') + (href ? `<a class="crumb" href="${href}">${text}</a>` : `<span class="crumb">${text}</span>`)).join('');
 }
 
+/* ---------- 0 · From pixels (sample images + overlays from data/images/<id>/manifest.json) ---------- */
+const IMAGES_DIR = (id) => `data/images/${id}/`;
+/** Load a dataset's image manifest; only registry entries with `images: 'manifest'` are ever requested. */
+function loadManifest(id) {
+  if (registryOf(id)?.images !== 'manifest') return Promise.resolve(null);
+  if (!state.manifests.has(id)) {
+    state.manifests.set(id, loadJSON(`${IMAGES_DIR(id)}manifest.json`).catch((e) => { state.manifests.delete(id); throw e; }));
+  }
+  return state.manifests.get(id);
+}
+/** "LMNA−/−", "lmna-/-" and "LMNA" all read as the same class name; so do "wild-type" and "wildtype". */
+const classKey = (s) => String(s).toLowerCase().replace(/−/g, '-').replace(/[^a-z0-9]/g, '');
+/** The class index an image (or overlay) names: an integer id, or a class name matched loosely. */
+function classIndexOf(ds, cls) {
+  const classes = ds?.classes || [];
+  if (cls === null || cls === undefined || cls === '') return null;
+  if (Number.isInteger(cls)) return classes.some((c) => c.id === cls) ? cls : null;
+  const k = classKey(cls);
+  const hit = classes.find((c) => classKey(c.name) === k || String(c.id) === String(cls)) || (k ? classes.find((c) => classKey(c.name).startsWith(k) || k.startsWith(classKey(c.name))) : null);
+  return hit ? hit.id : null;
+}
+/** An image's class: its `class_id` when the manifest gives one, else its `class` name. */
+const imageClass = (ds, img) => (Number.isInteger(img.class_id) ? classIndexOf(ds, img.class_id) : null) ?? classIndexOf(ds, img.class);
+const finitePt = (p) => Array.isArray(p) && Number.isFinite(p[0]) && Number.isFinite(p[1]);
+/** A short accessible name for an overlay layer: "15 worm outlines and landmarks", "11 cell outlines" (the per-shape labels stay in each <title>). */
+function overlaySummary(ovs, word = 'shape') {
+  const nO = ovs.filter((o) => o.kind !== 'landmarks').length, nL = ovs.length - nO;
+  const plural = (n, w) => `${n} ${w}${n === 1 ? '' : 's'}`;
+  if (nO && nO === nL) return `${nO} ${word} outline${nO === 1 ? '' : 's'} and landmarks`;
+  const parts = [nO ? plural(nO, `${word} outline`) : '', nL ? plural(nL, `${word} landmark set`) : ''].filter(Boolean);
+  return parts.length ? parts.join(' and ') : 'no overlays';
+}
+/** The SVG layer drawn over one image: viewBox = the PNG's pixel frame, so it stays registered at any size. */
+function overlaySvg(img, ds) {
+  const W = img.width, H = img.height;
+  const imgCls = imageClass(ds, img);
+  const ovs = (Array.isArray(img.overlays) ? img.overlays : []).filter((o) => Array.isArray(o.points) && o.points.some(finitePt));
+  const dotW = Math.max(W, H) / 120;   // landmark dot diameter in image pixels (5.8 px on a 696-px BBBC010 field)
+  const S = svg('svg', { class: 'px-ov', viewBox: `0 0 ${W} ${H}`, preserveAspectRatio: 'none', role: 'img', 'aria-label': overlaySummary(ovs, registryOf(ds?.id)?.objWord) });
+  ovs.forEach((o) => {
+    const ci = o.class !== undefined ? classIndexOf(ds, o.class) : imgCls;
+    const col = ci === null ? 'var(--gold)' : stroke(ci);
+    const pts = o.points.filter(finitePt);
+    const g = svg('g', { 'data-kind': o.kind || 'outline' }, S);
+    if (o.label) svg('title', { text: o.label }, g);
+    const d = pts.map((p, i) => `${i ? 'L' : 'M'}${(+p[0]).toFixed(1)},${(+p[1]).toFixed(1)}`).join('') + (o.closed ? 'Z' : '');
+    if (o.kind === 'landmarks') {
+      // a thin polyline through the landmarks (fixed screen width), then each landmark as a round dot sized in
+      // image pixels, so a dense field stays readable on a phone and the dots grow with the larger view
+      svg('path', { d, class: 'halo', 'stroke-width': 3 }, g);
+      svg('path', { d, class: 'line', stroke: col, 'stroke-width': 1.2 }, g);
+      const dots = pts.map((p) => `M${(+p[0]).toFixed(1)},${(+p[1]).toFixed(1)}h0`).join('');
+      svg('path', { d: dots, class: 'halo dot', 'stroke-width': (dotW * 1.45).toFixed(2) }, g);
+      svg('path', { d: dots, class: 'line dot', stroke: col, 'stroke-width': dotW.toFixed(2) }, g);
+    } else {
+      svg('path', { d, class: 'halo', 'stroke-width': 3.6 }, g);
+      svg('path', { d, class: 'line', stroke: col, 'stroke-width': 1.8 }, g);
+    }
+  });
+  return S;
+}
+const KIND_WORDS = { outline: ['outline', 'outlines'], landmarks: ['landmarks', 'landmarks'] };
+/** "Show outlines and landmarks": the toggle names what the manifest actually draws (constant label; aria-pressed is the state). */
+function overlayLabel(img) {
+  const ovs = Array.isArray(img.overlays) ? img.overlays : [];
+  const kinds = [...new Set(ovs.map((o) => (o.kind === 'landmarks' ? 'landmarks' : 'outline')))];
+  const words = kinds.map((k) => KIND_WORDS[k][ovs.filter((o) => (o.kind === 'landmarks' ? 'landmarks' : 'outline') === k).length > 1 ? 1 : 0]);
+  return words.length ? `Show ${words.join(' and ')}` : null;
+}
+/** One image with its overlay: an <img> (lazy, width/height set) under an absolutely positioned SVG. */
+function pixelFrame(id, img, ds, { lazy = true } = {}) {
+  const frame = h('div', { class: 'px-frame' });
+  h('img', { src: IMAGES_DIR(id) + encodeURIComponent(img.file), alt: img.alt || '', width: img.width, height: img.height, loading: lazy ? 'lazy' : null, decoding: 'async' }, frame);
+  const ov = overlaySvg(img, ds);
+  ov.setAttribute('hidden', '');
+  frame.appendChild(ov);
+  return { frame, ov };
+}
+function overlayToggle(label, ovs) {
+  const b = h('button', { type: 'button', class: 'chip sm px-toggle', 'aria-pressed': 'false', text: label });
+  b.addEventListener('click', () => {
+    const on = b.getAttribute('aria-pressed') !== 'true';
+    b.setAttribute('aria-pressed', String(on));
+    ovs().forEach((o) => o.toggleAttribute('hidden', !on));
+  });
+  return b;
+}
+/** The larger view: one shared <dialog>; Escape (native) or Close shuts it and focus returns to the opener. */
+function pixelDialog(parent) {
+  const dlg = h('dialog', { class: 'px-dialog', 'aria-labelledby': 'px-dialog-title' }, parent);
+  let opener = null;
+  dlg.addEventListener('close', () => { dlg.querySelector('.px-dialog-body')?.replaceChildren(); if (opener?.isConnected) opener.focus(); opener = null; });
+  // a click on the backdrop (outside the dialog box) closes it too
+  dlg.addEventListener('click', (e) => { if (e.target === dlg) dlg.close(); });
+  return {
+    open(id, img, ds, from, overlayOn) {
+      opener = from;
+      dlg.innerHTML = '';
+      const head = h('div', { class: 'px-dialog-head' }, dlg);
+      h('h2', { id: 'px-dialog-title', text: firstSentence(img.caption || img.alt || img.file) }, head);
+      const close = h('button', { type: 'button', class: 'btn', text: 'Close' }, head);
+      close.addEventListener('click', () => dlg.close());
+      const body = h('div', { class: 'px-dialog-body' }, dlg);
+      const { frame, ov } = pixelFrame(id, img, ds, { lazy: false });
+      // as large as fits: never wider than the box, never taller than the viewport, at most 1.5× the PNG
+      frame.style.width = `min(100%, ${Math.round(img.width * 1.5)}px, calc((100dvh - 190px) * ${(img.width / img.height).toFixed(4)}))`;
+      body.appendChild(frame);
+      const tools = h('div', { class: 'px-tools' }, dlg);
+      if (img.caption && firstSentence(img.caption) !== String(img.caption).trim()) h('p', { class: 'small', html: mdCode(img.caption) }, tools);
+      const label = overlayLabel(img);
+      if (label) {
+        const t = overlayToggle(label, () => [ov]);
+        tools.appendChild(t);
+        if (overlayOn) t.click();
+      }
+      if (img.processing) h('p', { class: 'small muted', html: mdCode(img.processing) }, tools);
+      dlg.showModal();
+      close.focus();
+    },
+  };
+}
+/** Why a dataset has no images here, worded per registry entry (never a legal claim beyond the license's own terms). */
+function noImagesHtml(id, ds, reg) {
+  const lic = ds?.source?.license ? ds.source.license.split(/\s*[(;:]/)[0].trim() : '';
+  const licU = licenseUrl(ds?.source);
+  const licHtml = lic ? (licU ? `<a href="${esc(licU)}" target="_blank" rel="noopener">${esc(lic)}</a>` : esc(lic)) : '';
+  const fetchCmd = `python scripts/fetch_datasets.py --images ${id}`;
+  const cmd = (what) => `<p class="reading">${what}</p><pre><code>${esc(fetchCmd)}</code></pre>`;
+  switch (reg?.images) {
+    case 'none':
+      return '<p class="reading">This dataset is landmark coordinates; there are no images. The R package it comes from ships the coordinates only, so the page starts from the landmarks in panel 1.</p>';
+    case 'unverified':
+      return `<p class="reading">The outlines on this page are redistributed under their own license${licHtml ? ` (${licHtml})` : ''}. The photographs they were traced from are a different matter: the photographs' license could not be verified, so they are not redistributed.</p>`
+        + cmd('To look at the photographs on your own machine (downloaded into <code>data/_local/images/leaves/</code>, which git ignores; the script prints the checksums, the license statement it found and the attribution it requires):');
+    case 'nc_nd':
+      return `<p class="reading">The images are licensed ${licHtml || 'CC BY-NC-ND 4.0'}: no derivatives and no commercial use. Web-ready samples would be modified copies (cropped, converted to PNG), which the no-derivatives term does not allow, so, as a precaution, no image from this dataset is in the repository.</p>`
+        + cmd(`To look at them on your own machine, fetch the dataset first with <code>${esc(reg.fetch || 'python scripts/fetch_datasets.py --rbc')}</code> (into <code>data/_local/</code>, which git ignores); this command then points to the extracted image tree:`);
+    default:
+      return '<p class="reading">No sample images are registered for this dataset.</p>';
+  }
+}
+/** Panel 0 · From pixels. `man` is the manifest (or null), `manErr` the reason it could not be loaded. */
+function pixelsPanel(id, ds, reg, man, manErr) {
+  const sec = h('section', { class: 'panel wide px-panel', 'aria-labelledby': 'p0h' });
+  const imgs = Array.isArray(man?.images) ? man.images.filter((im) => im && im.file && Number.isFinite(im.width) && Number.isFinite(im.height)) : [];
+  sec.innerHTML = `<div class="panel-head"><h2 id="p0h">0 · From pixels</h2><span class="small">${imgs.length ? `${countWord(imgs.length)} sample image${imgs.length === 1 ? '' : 's'}, the pixels the shapes come from` : (reg?.images === 'none' ? 'no images exist' : 'no images in the repository')}</span></div>`;
+  if (reg?.images !== 'manifest') { sec.insertAdjacentHTML('beforeend', noImagesHtml(id, ds, reg)); return sec; }
+  if (!imgs.length) {
+    sec.insertAdjacentHTML('beforeend', `<p class="reading">The sample images have not been generated yet: <code>${esc(IMAGES_DIR(id))}manifest.json</code> ${manErr ? `could not be loaded (${esc(manErr.message)})` : 'lists no images'}. <code>python scripts/make_sample_images.py</code> builds them from the originals that <code>python scripts/fetch_datasets.py --images ${esc(id)}</code> downloads.</p>`);
+    return sec;
+  }
+  // legend: the class colors and the overlay kinds actually present
+  const usedClasses = [...new Set(imgs.map((im) => imageClass(ds, im)))].sort((x, y) => (x === null) - (y === null) || x - y);
+  const kinds = new Set(imgs.flatMap((im) => (im.overlays || []).map((o) => (o.kind === 'landmarks' ? 'landmarks' : 'outline'))));
+  const legend = h('div', { class: 'px-legend', 'aria-label': 'Overlay legend' }, sec);
+  legend.innerHTML = `<span class="lbl">Overlay colors:</span>${usedClasses.map((ci) => (ci === null
+    ? '<span><i class="sw" style="background:var(--gold)"></i>class not matched</span>'
+    : `<span><i class="sw" style="background:${stroke(ci)}"></i><span ${textAttr(ci)}>${esc(ds.classes.find((c) => c.id === ci)?.name ?? ci)}</span></span>`)).join('')}`
+    + (kinds.has('outline') ? '<span><i class="kind line" aria-hidden="true"></i>outline</span>' : '')
+    + (kinds.has('landmarks') ? '<span><i class="kind dots" aria-hidden="true"><b></b><b></b><b></b></i>landmarks</span>' : '');
+  const grid = h('div', { class: 'px-grid' }, sec);
+  const dialog = pixelDialog(sec);
+  imgs.forEach((img) => {
+    const fig = h('figure', { class: 'px-fig' }, grid);
+    const ci = imageClass(ds, img);
+    const { frame, ov } = pixelFrame(id, img, ds);
+    const zoom = h('button', { type: 'button', class: 'px-zoom', 'aria-label': `View larger: ${img.alt || img.file}`, title: 'View larger' }, fig);
+    zoom.appendChild(frame);
+    h('span', { class: 'px-zoom-badge', 'aria-hidden': 'true', html: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg>' }, zoom);
+    const tools = h('div', { class: 'px-tools' }, fig);
+    const label = overlayLabel(img);
+    let toggle = null;
+    if (label) { toggle = overlayToggle(label, () => [ov]); tools.appendChild(toggle); }
+    zoom.addEventListener('click', () => dialog.open(id, img, ds, zoom, toggle?.getAttribute('aria-pressed') === 'true'));
+    const cap = h('figcaption', {}, fig);
+    const clsName = ci === null ? (img.class ? esc(img.class) : '') : `<strong ${textAttr(ci)}>${esc(ds.classes.find((c) => c.id === ci)?.name ?? img.class)}</strong>`;
+    cap.innerHTML = `<span>${clsName ? clsName + ' · ' : ''}${mdCode(img.caption || '')}</span>`
+      + (img.processing ? `<span class="px-proc">${mdCode(img.processing)}</span>` : '')
+      + ((img.source_file || img.channel) ? `<span class="px-proc">${img.source_file ? `Source file <code>${esc(img.source_file)}</code>` : ''}${img.source_file && img.channel ? ', ' : ''}${img.channel ? `channel ${esc(img.channel)}` : ''}.</span>` : '');
+  });
+  // credit line: title → url, authors, license → license_url, the notice file on GitHub
+  const c = man.credit || {};
+  const parts = [];
+  if (c.title) parts.push(`Images: ${c.url ? `<a href="${esc(c.url)}" target="_blank" rel="noopener">${mdCode(c.title)}</a>` : mdCode(c.title)}`);
+  if (c.authors) parts.push(esc(Array.isArray(c.authors) ? c.authors.join(', ') : c.authors));
+  if (c.copyright) parts.push(esc(c.copyright));
+  if (c.license) { const u = c.license_url || licenseUrl({ license: c.license }); parts.push(`License: ${u ? `<a href="${esc(u)}" target="_blank" rel="noopener">${esc(c.license)}</a>` : esc(c.license)}`); }
+  if (c.notice_file) parts.push(`<a href="${REPO_URL}/blob/main/docs/lab/${esc(IMAGES_DIR(id))}${encodeURIComponent(c.notice_file)}" target="_blank" rel="noopener">${esc(c.notice_file)}</a>`);
+  if (parts.length) h('p', { class: 'data-line', html: parts.join(' · ') + '.' }, sec);
+  const extra = [c.license_note ? mdCode(c.license_note) : '', c.related_paper ? `Related paper: ${mdCode(c.related_paper)}` : '', c.overlay_credit ? `Overlays: ${mdCode(c.overlay_credit)}.` : '', c.citation ? `Requested citation: ${mdCode(c.citation)}` : ''].filter(Boolean);
+  if (extra.length) h('p', { class: 'data-line', html: extra.join(' ') }, sec);
+  h('p', { class: 'small muted', html: `Overlays are drawn in the PNG's own pixel frame, so they stay on the cells at any size. The full image set: <code>python scripts/fetch_datasets.py --images ${esc(id)}</code> (into <code>data/_local/images/${esc(id)}/</code>, never committed).` }, sec);
+  return sec;
+}
+
+/** Leaderboard footnote for a caveated row: the first caveat sentence and, when computed, the roundness baseline. */
+function caveatFootHtml(d, ds) {
+  const rb = ds?.roundness_baseline;
+  const best = ds && typeof d.best_method === 'string' ? ds.methods?.[d.best_method] : null;
+  const name = METHODS.find((m) => m.key === d.best_method)?.name;
+  let extra = '';
+  if (rb && Number.isFinite(rb.accuracy)) {
+    extra = ` ${esc((rb.label || 'roundness only').charAt(0).toUpperCase() + (rb.label || 'roundness only').slice(1))} scores ${num(fmt(rb.accuracy), ds, '', protocolOf(rb) ? `protocol: ${protocolOf(rb)}` : '')}`
+      + (best && Number.isFinite(best.accuracy) ? `, against ${num(fmt(best.accuracy), ds, '', protocolOf(best) ? `protocol: ${protocolOf(best)}` : '')} for the best method (${[name ? esc(name) : '', protocolOf(best) !== protocolOf(rb) ? 'different protocols' : ''].filter(Boolean).join('; ')})`.replace(' ()', '') : '') + '.';
+  }
+  return `${caveatMark('Caveat')} <strong>${esc(shortName(d))}:</strong> ${esc(caveatShort(d.id, ds))}${extra} <a href="#/${esc(d.id)}">Read the caveat</a>.`;
+}
+/** The caveat box at the top of a dataset page (above panel 0): every caveat, then the roundness baseline next to the methods. */
+function caveatBox(id, ds) {
+  const cav = caveatsOf(ds);
+  if (!cav.length) return null;
+  const box = h('section', { class: 'caveat-box', 'aria-labelledby': 'cavh' });
+  const note = titleNote(id);
+  h('div', { class: 'caveat-head', html: `<span class="caveat-mark big" aria-hidden="true">!</span><h2 id="cavh">Caveat${note ? `: ${esc(note)}` : ''}</h2>` }, box);
+  cav.forEach((c, i) => h('p', { class: i === 0 ? 'caveat-lead' : 'caveat-more', html: mdCode(c) }, box));
+  const rb = ds.roundness_baseline;
+  if (rb && Number.isFinite(rb.accuracy)) {
+    const rows = [[rb.label || 'roundness only', rb, true], ...METHODS.filter((m) => methodAvailable(ds.methods?.[m.key])).map((m) => [m.baseline ? `${m.name} (baseline)` : m.name, ds.methods[m.key], false])];
+    const tiles = h('div', { class: 'caveat-tiles', role: 'list', 'aria-label': 'Roundness baseline next to the methods' }, box);
+    rows.forEach(([label, r, diag]) => {
+      const p = protocolOf(r);
+      h('div', { class: `tile${diag ? ' diag' : ''}`, role: 'listitem', html: `<span>${esc(label)}</span><strong>${num(fmt(r.accuracy), ds, '', p ? `protocol: ${p}` : '')}</strong><span class="proto">${esc(p || '')}</span>` }, tiles);
+    });
+    const cls = ds.classes || [];
+    const med = (arr, d) => (Array.isArray(arr) ? cls.map((c) => `<span ${textAttr(c.id)}>${esc(c.name)}</span> ${num(fmt(arr[c.id], d), ds)}`).join(', ') : '');
+    const circ = med(rb.circularity_median_by_class, 2), ar = med(rb.axis_ratio_median_by_class, 2);
+    h('p', { class: 'caveat-more', html: `<strong>${esc((rb.label || 'roundness only').charAt(0).toUpperCase() + (rb.label || 'roundness only').slice(1))}</strong> is a diagnostic, not a method: each cell's circularity (4πA/P² of its outline${rb.point_order ? `, the points joined in ${esc(rb.point_order)} order` : ''}) and the log of its axis ratio go into a logistic regression, scored like the other methods (the tiles name each protocol; cross-validated and hold-out numbers are not a ranking).${circ ? ` Median circularity: ${circ}.` : ''}${ar ? ` Median axis ratio: ${ar}.` : ''} If two hand-made roundness numbers score about as well as the best method, the classifiers need not be seeing anything beyond roundness, which a circle micropattern would be expected to impose [Inference].` }, box);
+  }
+  return box;
+}
+
 async function renderDataset(id) {
   const reg = registryOf(id);
-  setTitle(reg?.title || id); setSub(reg?.title || id); buildChips(id);
+  setTitle(titleWithNote(id, reg?.title || id)); setSub(titleWithNote(id, reg?.title || id)); buildChips(id);
   main.innerHTML = '<p class="loading">Loading dataset…</p>';
+  // the manifest is fetched alongside the dataset and awaited before rendering, so panel 0 never shifts the page
+  const manP = loadManifest(id).then((m) => [m, null], (e) => [null, e]);
   await loadIndex();
   let ds = null, err = null;
   try { ds = await loadDataset(id); } catch (e) { err = e; }
+  const [man, manErr] = await manP;
   if (state.route !== `ds:${id}`) return;
   buildChips(id);
   main.innerHTML = '';
@@ -547,13 +811,15 @@ async function renderDataset(id) {
   if (!ds) {
     if (!reg) { main.insertAdjacentHTML('beforeend', `<h1>Unknown dataset</h1><p class="lede">There is no dataset called <code>${esc(id)}</code>. <a href="#/">Back to the lab.</a></p>`); afterRender(); return; }
     main.insertAdjacentHTML('beforeend', `<div class="ds-head"><div class="text"><h1>${titleHtml(reg.title)}</h1><p class="lede">This dataset is in the registry (<code>shapekit/lab_datasets.py</code>) but has not been computed: <code>data/${esc(id)}.json</code> is missing (${esc(err?.message || '')}).</p></div></div>`);
+    main.appendChild(pixelsPanel(id, null, reg, man, manErr));
     main.appendChild(fetchBox({ id, status: 'proposed', source: null, shapes_shown: true }, reg));
     afterRender(); return;
   }
-  setTitle(ds.title); setSub(ds.title);
+  setTitle(titleWithNote(id, ds.title)); setSub(titleWithNote(id, ds.title));
   const head = h('div', { class: 'ds-head' }, main);
   const text = h('div', { class: 'text' }, head);
-  h('h1', { html: titleHtml(ds.title) }, text);
+  h('h1', { html: titleHtml(ds.title) + (titleNote(id) && caveatsOf(ds).length ? ` <span class="title-note">(${esc(titleNote(id))})</span>` : '') }, text);
+  const cavBox = caveatBox(id, ds);
   const thing = ds.representation === 'pointcloud' ? 'cells' : ds.representation === 'outline' ? 'outlines' : 'shapes';
   const ptsWord = ds.representation === 'pointcloud' ? 'unordered points' : ds.representation === 'outline' ? 'outline points' : 'landmarks';
   const classesHtml = ds.classes?.length > 6 ? `<strong>${ds.classes.length} classes</strong> (${esc(classSummary(ds.classes).replace(/^.*\(|\)$/g, ''))})` : classCounts(ds);
@@ -561,7 +827,7 @@ async function renderDataset(id) {
     ? `${num(thousands(ds.n), ds)} ${thing}${ds.source?.name ? ' from ' + mdCode(ds.source.name) : ''}${ds.n_points ? `, ${num(ds.n_points, ds)} ${ptsWord} each` : ''}. ${ds.classes?.length ? classesHtml + '.' : ''} ${ds.question ? 'Question: ' + esc(ds.question) : ''}`
     : `${ds.source?.name ? mdCode(ds.source.name) + '. ' : ''}${ds.classes?.length ? 'Classes: ' + ds.classes.map((c) => `<span ${textAttr(c.id)}>${esc(c.name)}</span>`).join(', ') + '. ' : ''}${ds.question ? 'Question: ' + esc(ds.question) : ''}` }, text);
 
-  if (ds.status === 'fetch_locally') { main.appendChild(fetchBox(ds, reg)); main.appendChild(dataLine(ds)); afterRender(); return; }
+  if (ds.status === 'fetch_locally') { if (cavBox) main.appendChild(cavBox); main.appendChild(pixelsPanel(id, ds, reg, man, manErr)); main.appendChild(fetchBox(ds, reg)); main.appendChild(dataLine(ds)); afterRender(); return; }
 
   // method tabs
   const tabs = h('div', { class: 'chips', role: 'tablist', 'aria-label': 'Method' }, head);
@@ -580,7 +846,9 @@ async function renderDataset(id) {
   if (engineCheck && engineCheck.checked > 0 && !engineCheck.ok) main.appendChild(banner('warn', `The in-browser engine does not reproduce the script's probabilities for this dataset (max |Δp| = ${engineCheck.maxErr.toExponential(1)} over ${engineCheck.checked} shapes; this page's tolerance is 1e-3). The classifier screen may disagree with these numbers.`));
 
   const shown = ds.shapes_shown !== false;
+  if (cavBox) main.appendChild(cavBox);
   const panels = h('div', { class: 'panels' }, main);
+  panels.appendChild(pixelsPanel(id, ds, reg, man, manErr));
 
   if (shown) {
     // panel 1: raw shapes by class
@@ -666,6 +934,11 @@ async function renderDataset(id) {
     if (current === 'spline_lr' && m.M) bits.push(`M = ${num(m.M, ds)}`);
     if (mdef.baseline) bits.push('a baseline, not a headline');
     res.innerHTML = `<div class="acc"><span class="label">accuracy · ${esc(mdef.name)}</span><strong>${num(fmt(m.accuracy), ds, '', protocolOf(m) ? `protocol: ${protocolOf(m)}` : '')}</strong><span class="sub">${bits.join(' · ')}</span><span class="proto">${protocolText(m)}${sizeInfo(m) ? ` · size ${esc(sizeInfo(m))}` : ''}</span></div>`;
+    const rb = ds.roundness_baseline;
+    if (rb && Number.isFinite(rb.accuracy)) {
+      const acc = res.querySelector('.acc');
+      acc.insertAdjacentHTML('beforeend', `<span class="diag-line">${caveatMark('Caveat')} ${esc(rb.label || 'roundness only')}: ${num(fmt(rb.accuracy), ds, '', protocolOf(rb) ? `protocol: ${protocolOf(rb)}` : '')}${protocolOf(rb) ? ` (${esc(protocolOf(rb))})` : ''}; a diagnostic, see the caveat above</span>`);
+    }
     let info = null;
     if (Array.isArray(m.cm)) { const ct = confusionTable(ds, m, current); const cw = h('div', { class: 'cm-wrap' }, res); cw.appendChild(ct.table); scrollable(cw, `Confusion matrix, ${mdef.name}`); info = ct; }
     else res.insertAdjacentHTML('beforeend', '<p class="muted small">confusion matrix [not run]</p>');
@@ -756,6 +1029,7 @@ async function renderClassify(id) {
   const text = h('div', { style: 'display:flex;flex-direction:column;gap:8px;max-width:700px' }, head);
   h('h1', { text: 'Classify a shape' }, text);
   const lede = h('p', { class: 'lede', style: 'font-size:1rem' }, text);
+  if (caveatsOf(ds).length) h('p', { class: 'small cls-caveat', html: `${caveatMark('Caveat')} ${esc(caveatShort(id, ds))} <a href="#/${esc(id)}">See the caveat</a>.` }, text);
   const sel = h('div', { class: 'engine-sel', role: 'group', 'aria-label': 'Engine on this device' }, head);
   h('span', { text: 'Engine on this device:' }, sel);
   const pillEls = {};

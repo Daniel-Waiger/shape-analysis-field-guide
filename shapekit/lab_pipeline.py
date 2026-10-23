@@ -24,6 +24,15 @@ The method families:
   StandardScaler → logistic regression, same folds).  It says how much of a
   dataset's separability is size, which every other method has removed.
 
+Diagnostic (not a method, never in ``methods`` or ``best_accuracy``):
+
+- ``roundness_baseline`` (datasets in ``ROUNDNESS_BASELINE_DATASETS``, i.e.
+  ``mef``): circularity + log axis ratio → StandardScaler → logistic
+  regression, same folds (:func:`roundness_baseline`), circularity measured
+  on each cloud put in loop order (:func:`shapekit.contours.order_loop`).
+  Two hand-made numbers; it shows how much of the MEF separability is plain roundness,
+  which is what the dataset's genotype/substrate confound predicts.
+
 Preprocessing by representation:
 
 - ``landmarks``: used as they are (anatomical correspondence);
@@ -48,7 +57,7 @@ import numpy as np
 from numpy.typing import NDArray
 
 from .bspline import BSplineCurve
-from .contours import resample_by_arclength
+from .contours import order_loop, resample_by_arclength
 from .datasets import resolve_data_dir
 from .lab_datasets import LabDataset
 from .lab_engine import classify, engine_from_fit
@@ -71,6 +80,9 @@ __all__ = [
     "classical_method",
     "spline_method",
     "size_method",
+    "circularity",
+    "axis_ratio",
+    "roundness_baseline",
     "pca_block",
     "examples_block",
     "neighbours_block",
@@ -109,6 +121,11 @@ N_SCATTER = 400
 N_NEIGHBOURS = 300
 LR_C = 1.0
 LR_MAX_ITER = 3000
+#: datasets that get the display-only ``roundness_baseline`` block (the MEF confound, LAB_SPEC.md Round 3b)
+ROUNDNESS_BASELINE_DATASETS = ("mef",)
+ROUNDNESS_LABEL = "roundness only (two hand-made numbers)"
+#: how ``roundness_baseline`` orders each point cloud before measuring its circularity
+POINT_ORDER = "nearest-neighbor + 2-opt loop"
 
 #: the ``protocol`` strings every method block carries
 CV_PROTOCOL = "stratified {k}-fold CV, seed {seed}, pooled out-of-fold"
@@ -497,6 +514,67 @@ def size_method(points: NDArray, labels: NDArray, classes: list[str], seed: int 
     return result
 
 
+def circularity(ordered: NDArray) -> NDArray:
+    """``4πA / P²`` of each closed polygon ``(K, N, 2)`` (shoelace area, perimeter incl. the closing edge).
+
+    1 for a circle, smaller for anything elongated or ragged.  The points
+    must be in loop order: for a point cloud use
+    :func:`shapekit.contours.order_loop` (as :func:`roundness_baseline`
+    does), not angle order around the centroid, under which a
+    non-star-shaped outline zig-zags and its circularity comes out too low.
+    """
+    P = np.asarray(ordered, dtype=float)
+    x, y = P[..., 0], P[..., 1]
+    area = 0.5 * np.abs(np.sum(x * np.roll(y, -1, axis=1) - np.roll(x, -1, axis=1) * y, axis=1))
+    perimeter = np.sum(np.linalg.norm(P - np.roll(P, -1, axis=1), axis=2), axis=1)
+    return 4.0 * np.pi * area / perimeter**2
+
+
+def axis_ratio(points: NDArray) -> NDArray:
+    """``sqrt(λ_max / λ_min)`` of each shape's 2 × 2 point covariance (≥ 1; order-free), ``(K,)``."""
+    P = np.asarray(points, dtype=float)
+    centred = P - P.mean(axis=1, keepdims=True)
+    cov = np.einsum("kni,knj->kij", centred, centred) / P.shape[1]
+    ev = np.linalg.eigvalsh(cov)  # ascending
+    return np.sqrt(ev[:, 1] / np.maximum(ev[:, 0], np.finfo(float).tiny))
+
+
+def roundness_baseline(points: NDArray, labels: NDArray, classes: list[str], seed: int = 0, C: float = LR_C,
+                       max_iter: int = LR_MAX_ITER) -> dict:
+    """Display-only diagnostic: circularity + log axis ratio → StandardScaler → logistic regression.
+
+    Same folds and classifier as the methods (stratified 5-fold, shuffled,
+    ``random_state=seed``; pooled out-of-fold accuracy).  Circularity is
+    :func:`circularity` of each cloud put in loop order by
+    :func:`shapekit.contours.order_loop` (nearest-neighbor walk + 2-opt; angle
+    order around the centroid would zig-zag on cells with protrusions and
+    push their circularity down); the axis ratio is :func:`axis_ratio` of
+    the points as given (order-free).  Not a method: it lives outside
+    ``methods`` and never counts for ``best_accuracy``.
+    """
+    y = np.asarray(labels).astype(int)
+    n_classes = len(classes)
+    looped = np.stack([order_loop(cloud) for cloud in np.asarray(points, dtype=float)])
+    circ = circularity(looped)
+    ratio = axis_ratio(points)
+    features = np.column_stack([circ, np.log(ratio)])
+    _pipe, _cv, _proba, pred, folds = _cv_predict(features, y, seed, C, max_iter)
+    result = _cv_summary(y, pred, folds, n_classes, seed, C, max_iter)
+    result.update({
+        "label": ROUNDNESS_LABEL,
+        "features": ["circularity 4πA/P² of the outline with the points in loop order",
+                     "log axis ratio, sqrt(λ_max/λ_min) of the point covariance"],
+        "point_order": POINT_ORDER,
+        "n_features": 2,
+        "circularity_median_by_class": [float(np.median(circ[y == c])) for c in range(n_classes)],
+        "axis_ratio_median_by_class": [float(np.median(ratio[y == c])) for c in range(n_classes)],
+        "role": "diagnostic",
+        "note": ("display-only diagnostic, not a method (excluded from methods and best_accuracy): how far plain "
+                 "roundness separates the classes"),
+    })
+    return result
+
+
 # --------------------------------------------------------------------------- #
 # display blocks
 # --------------------------------------------------------------------------- #
@@ -777,6 +855,8 @@ def run_dataset(ds: LabDataset, points: NDArray, labels: NDArray, *, seed: int =
         "preprocessing": dataset_notes(ds) + prep["notes"],
         "methods": {},
     }
+    if ds.caveats:
+        doc["caveats"] = list(ds.caveats)
     if prep["cyclic"] is not None:
         doc["cyclic_shift_alignment"] = {k: v for k, v in prep["cyclic"].items() if k != "shifts"}
 
@@ -819,6 +899,15 @@ def run_dataset(ds: LabDataset, points: NDArray, labels: NDArray, *, seed: int =
     timing["size_lr"] = time.perf_counter() - t
     doc["methods"]["size_lr"] = res
     say(f"  size_lr       acc {res['accuracy']:.4f} ± {res['accuracy_sd']:.4f}  (size only, {timing['size_lr']:.1f} s)")
+
+    # --- roundness diagnostic (display only, not a method) --------------- #
+    if ds.id in ROUNDNESS_BASELINE_DATASETS:
+        t = time.perf_counter()
+        res = roundness_baseline(prep["cloud"], labels, classes, seed=seed)
+        timing["roundness_baseline"] = time.perf_counter() - t
+        doc["roundness_baseline"] = res
+        say(f"  roundness     acc {res['accuracy']:.4f} ± {res['accuracy_sd']:.4f}  (diagnostic: circularity + "
+            f"axis ratio, {timing['roundness_baseline']:.1f} s)")
 
     # --- display blocks -------------------------------------------------- #
     note = None

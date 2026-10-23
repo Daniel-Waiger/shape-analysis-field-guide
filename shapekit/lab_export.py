@@ -143,6 +143,7 @@ def fetch_locally_document(ds: LabDataset, script: str, reason: str, computed_at
                    "license": ds.source.license, "redistributed": bool(ds.source.redistributed)},
         "classes": [{"id": i, "name": name, "n": None} for i, name in enumerate(ds.classes)],
         "fetch_command": ds.fetch_command,
+        **({"caveats": list(ds.caveats)} if ds.caveats else {}),
         "reason": reason,
         "computed_at": computed_at or timestamp(),
         "script": script,
@@ -183,7 +184,7 @@ def index_entry(ds: LabDataset, doc: dict | None) -> dict:
         return {"id": ds.id, "title": ds.title, "status": "proposed", "representation": ds.representation,
                 "n": None, "classes": list(ds.classes), "best_accuracy": None, "best_method": None,
                 "best_protocol": None, "chance": None, "license": ds.source.license,
-                "shapes_shown": bool(ds.shapes_shown)}
+                "shapes_shown": bool(ds.shapes_shown), "has_caveat": bool(ds.caveats)}
     name, acc, protocol = best_method(doc)
     return {
         "id": ds.id, "title": doc.get("title", ds.title), "status": doc.get("status", "proposed"),
@@ -192,6 +193,7 @@ def index_entry(ds: LabDataset, doc: dict | None) -> dict:
         "best_accuracy": acc, "best_method": name, "best_protocol": protocol, "chance": doc.get("chance"),
         "license": doc.get("source", {}).get("license", ds.source.license),
         "shapes_shown": bool(doc.get("shapes_shown", ds.shapes_shown)),
+        "has_caveat": bool(doc.get("caveats") or ds.caveats),
         "methods": {m: (b.get("status", "ready") if isinstance(b, dict) else "ready")
                     for m, b in doc.get("methods", {}).items()},
         "computed_at": doc.get("computed_at"),

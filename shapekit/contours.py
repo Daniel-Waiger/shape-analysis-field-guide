@@ -9,7 +9,7 @@ inverted y axis.
 Explained in chapter 01.
 
 Credits: the pipeline (mask, contour, skeleton, endpoint search,
-nearest-neighbour ordering, arc-length resampling) follows notebook 1 of
+nearest-neighbor ordering, arc-length resampling) follows notebook 1 of
 *Shape Analysis 101* by Johannes Hugger and Virginie Uhlmann (2021, BSD-3).
 Contour tracing is marching squares as in scikit-image's ``find_contours``;
 thinning is Zhang & Suen (1984).  Re-implemented, not copied.
@@ -165,6 +165,68 @@ def order_skeleton(mask: ArrayLike) -> NDArray:
         remaining[nxt] = False
         current = pts[nxt]
     return pts[order]
+
+
+def order_loop(points: ArrayLike) -> NDArray:
+    """Put an unordered cloud of outline points into loop order.
+
+    Method: a greedy nearest-neighbor walk from point 0 (always step to
+    the closest point not yet visited), then 2-opt: whenever reversing a
+    stretch of the loop, i.e. swapping edges ``(a, b), (c, d)`` for
+    ``(a, c), (b, d)``, makes the closed loop shorter, do it, and repeat
+    until no such swap is left.  The result is a short closed tour through
+    all points, which for a densely sampled outline is the outline itself.
+
+    Why not sort by angle around the centroid?  That only works for a
+    star-shaped outline (every boundary point visible from the centroid).
+    For a cell with protrusions, or anything bent, angle order jumps back
+    and forth between the near and the far side of the shape, the polygon
+    zig-zags, and its perimeter (and so its circularity ``4πA/P²``) is
+    wrong.  The loop order follows the boundary instead.
+
+    - ``points``: ``(N, 2)`` points sampled on one closed outline, in any
+      order.
+
+    Returns ``(N, 2)``: the same points in loop order, starting at the
+    original point 0 (the direction is whichever the walk took).
+    Deterministic, no randomness; ``O(N²)`` memory for the distance table.
+
+    Explained in chapter 01.
+    """
+    P = np.asarray(points, dtype=float)
+    n = len(P)
+    if n < 4:
+        return P.copy()
+    D = np.sqrt(((P[:, None, :] - P[None, :, :]) ** 2).sum(-1))
+    # greedy nearest-neighbor walk
+    order = np.empty(n, dtype=int)
+    order[0] = 0
+    left = np.ones(n, dtype=bool)
+    left[0] = False
+    for t in range(1, n):
+        cand = np.flatnonzero(left)
+        j = int(cand[np.argmin(D[order[t - 1], cand])])
+        order[t] = j
+        left[j] = False
+    # 2-opt, first improvement in scan order (vectorized over k for each i)
+    improved = True
+    while improved:
+        improved = False
+        for i in range(n - 1):
+            k0, k_end = i + 2, (n if i else n - 1)
+            while k0 < k_end:
+                ks = np.arange(k0, k_end)
+                a, b = order[i], order[i + 1]
+                c, d = order[ks], order[(ks + 1) % n]
+                gain = D[a, c] + D[b, d] < D[a, b] + D[c, d] - 1e-9
+                hits = np.flatnonzero(gain)
+                if not len(hits):
+                    break
+                k = int(ks[hits[0]])
+                order[i + 1:k + 1] = order[i + 1:k + 1][::-1]
+                improved = True
+                k0 = k + 1
+    return P[order]
 
 
 def arc_length(points: ArrayLike, closed: bool = False) -> NDArray:

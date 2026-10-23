@@ -16,7 +16,9 @@ example, a formula with a word-by-word reading, and the function in `shapekit/` 
 
 It adapts the EMBL-EBI tutorial *Shape Analysis 101* (Hugger & Uhlmann, 2021) and its two datasets:
 1,377 *C. elegans* worms (dead or alive, 12 landmarks each) and 1,200 mouse fibroblast outlines
-(wild-type or lamin-deficient, 120 unordered points each). Chapter 10's Phenotype Lab adds four more
+(wild-type or lamin-deficient, 120 unordered points each; in every field checked, 28 of 200 with the rest
+[Inference], genotype is confounded with the growth surface and with whatever else differs between the two source
+folders, so results on this set cannot be attributed to genotype; see chapter 10). Chapter 10's Phenotype Lab adds four more
 (brain and gorilla landmarks, leaf outlines, red blood cells). See [ATTRIBUTION.md](ATTRIBUTION.md).
 
 ## Read it
@@ -50,7 +52,7 @@ Two ways, same text:
 | 07 | [Shapes as smooth curves](docs/chapters/07-splines.md) | Cubic B-splines, local control, fitting by a two-pass filter, the overlap matrix Φ |
 | 08 | [Learned embeddings](docs/chapters/08-learned-embeddings.md) | PointNet, permutation invariance, supervised contrastive loss, linear probes |
 | 09 | [Field notes](docs/chapters/09-field-notes.md) | Nine real bugs from the source tutorial, why they happened, the habits that prevent them |
-| 10 | [Phenotype Lab](docs/chapters/10-phenotype-lab.md) | Six labeled datasets, three methods side by side, a classifier you can drag; what the real numbers say, including one below chance |
+| 10 | [Phenotype Lab](docs/chapters/10-phenotype-lab.md) | Six labeled datasets, three methods side by side, a classifier you can drag; what the real numbers say, including one below chance and one where the label is confounded (the fibroblasts: genotype travels with substrate) |
 | — | [Glossary](docs/chapters/glossary.md) · [Cheat sheet](docs/chapters/cheatsheet.md) · [References](docs/chapters/references.md) | |
 
 Each chapter ends with **Try it** (a runnable snippet), **Check yourself** (three questions with hidden answers)
@@ -61,10 +63,12 @@ and a link onward. Reading time is about 10–15 minutes per chapter.
 ```bash
 pip install -e .                 # numpy, scipy, matplotlib, scikit-learn
 pip install -e ".[embed]"        # + torch, for chapter 08
-python -m pytest -q              # ~130 fast tests (about 15 s); the deep-learning ones skip without torch
+python -m pytest -q              # 163 tests (about 20 s); the deep-learning ones skip without torch
 python scripts/make_figures.py   # regenerates docs/figures/ (a few minutes on CPU)
 python scripts/make_figures_embed.py   # chapter 08/09 figures; trains a small PointNet on CPU
 python scripts/export_site_data.py     # numbers the interactive demos use
+python scripts/fetch_datasets.py --images celegans mef   # original images into data/_local/images/ (git-ignored)
+python scripts/make_sample_images.py   # the Lab's sample images + overlays, and docs/figures/01_real_pipeline.png
 ```
 
 ### Regenerate the Phenotype Lab (chapter 10)

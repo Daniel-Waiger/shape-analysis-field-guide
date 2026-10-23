@@ -8,7 +8,7 @@ Every chapter so far relied on **correspondence**: landmark 3 of worm A matches 
 
 That rules out subtracting one cell from another, and so it rules out Chapters 03 to 06 as they stand. We need a function that takes a cloud of points and produces a fixed-length fingerprint, an **embedding**, with two properties: shuffling the points must not change it, and cells of the same type should get similar fingerprints. The first property is a matter of architecture; the second is learned.
 
-The dataset here: 1200 cells, 120 points each, label 0 = wild-type (coral), 1 = LMNA−/− (teal). The tutorial used the full set of 5377 cells (2438 wild-type, 2939 lamin-deficient); the numbers quoted below are its saved results on that full set.
+The dataset here: 1200 cells, 120 points each, label 0 = wild-type (coral), 1 = LMNA−/− (teal). The tutorial used the full set of 5377 cells (2438 wild-type, 2939 lamin-deficient); the numbers quoted below are its saved results on that full set. One caution before any result: in this dataset the two labels also mark two different growth surfaces (in every field checked, 28 of the 200; the rest [Inference]), so the accuracies below say that the two *groups* can be told apart, not why (see "What separates these two classes" below).
 
 ## PointNet: interview the crowd, keep the extremes
 
@@ -103,6 +103,8 @@ Finally, with embeddings in hand you can reuse Chapter 06's tools: PCA to two di
 ![PCA of the embeddings, colored by class](../figures/08_embedding_pca.png)
 *First two principal components of the 256-number embeddings of 300 held-out cells, before and after a 60-epoch CPU run of `scripts/make_figures_embed.py` (about 2 minutes). Linear-probe accuracy on those held-out cells: 0.89 untrained, 0.94 trained (5-fold CV, seed 0). The untrained baseline is higher than the tutorial's 0.835 because these cells are centered over the correct axis and the probe standardizes its features [Inference]. The gain is real but modest; the validation contrastive loss barely drops below its "learned nothing" level of ln 63 ≈ 4.14, so the projection head generalizes less than the embedding does.*
 
+**What separates these two classes.** Read every MEF accuracy in this chapter, untrained or trained, as "these two groups of cells can be told apart", not as "LMNA−/− cells have a different shape". In the tutorial's dataset the wild-type cells come from the original repository's folder `Control/LMNA++1`, cells spreading freely on an unpatterned surface, and the LMNA−/− cells from `Circle/LMNA--1`, cells grown on circular micropatterns (verified for 14 of 14 sampled fields per class, [Inference] for the rest). Genotype is confounded with substrate, and with whatever else differs between the two source folders (culture dish, day, imaging session; the repository does not say what its folder suffixes 1 and 2 mean). Two hand-made numbers, circularity and axis ratio, classify the 1200 cells at 0.94 on their own (5-fold CV; [Chapter 10](10-phenotype-lab.md) gives the details), about what the probes here reach. [Inference] The separation in the plot above is most likely the round-versus-spread difference that a circle pattern would be expected to impose on any cell. The mechanics this chapter teaches are unaffected; a statement about lamin A/C needs both genotypes on the same substrate, which this dataset does not have.
+
 ## What the one-epoch results actually showed
 
 Results on the tutorial's saved runs (CPU, full MEF set, batch 200, $\tau = 0.07$, one epoch):
@@ -115,7 +117,7 @@ Results on the tutorial's saved runs (CPU, full MEF set, batch 200, $\tau = 0.07
 
 Three readings, all [Inference]:
 - A loss of 5.27 sits on top of the "learned nothing" level of $\ln 199 \approx 5.29$. One epoch had barely moved the weights.
-- Accuracy after training is *lower* than before. The random network already gives a linearly separable embedding at 0.835, which says more about the data (a random projection of 120 outline points keeps a lot of geometry) than about learning.
+- Accuracy after training is *lower* than before. The random network already gives a linearly separable embedding at 0.835, which says more about the data than about learning: a random projection of 120 outline points keeps a lot of geometry, and here the two classes differ in a very plain piece of geometry, roundness (see the caveat above).
 - The two runs differ because the train/validation split was not seeded; the probe was measuring different cells each time.
 
 So the saved notebook demonstrates the plumbing, not a trained model; the exercise asks the student to raise the epoch count. Chapter 09 lists the bugs that would also have held a longer run back.

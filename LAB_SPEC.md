@@ -475,3 +475,269 @@ shipped code (`python scripts/run_lab.py`, 8.7 min for all six datasets on an id
 - **Budget**: 8.7 min measured for the full run (classical ~3 s; PointNet celegans 19 s, mef 87 s, leaves
   158 s, rbc 257 s), inside the 15-min target; the fit part is now 60 % of each dataset, which is why the
   PointNet steps are faster than in Round 1.
+
+## Round 3: raw images (option 3: samples in the repo + an images fetch option)
+
+**Which images may be redistributed.** Only datasets whose licence for the *images* is verified:
+`celegans` (BBBC010, CC0) and `mef` (Micropattern_MEF_LMNA_Image, MIT © 2020 Kyu Sang Han; the MIT
+notice must accompany the copies). `leaves`: the photographs' only licence statement is a Zenodo record
+whose uploader is unverified, so **no leaf photographs in the repo** unless that is resolved (fetch only).
+`rbc`: CC BY-NC-ND, **never** in the repo (fetch only; it is already fetched into `data/_local/`).
+`brain`, `gorilla`: coordinate data, no images exist.
+
+**Samples** (`docs/lab/data/images/<id>/`, small, web-ready):
+- `celegans`: one image from a live well (B07, ampicillin-treated) and one from a dead well (A23,
+  untreated), the brightfield channel the tutorial used (`w2`), contrast-stretched to 8-bit PNG,
+  ≤ 900 px wide; plus the matching BBBC010 ground-truth masks if available; each with an overlay computed
+  by `shapekit` from the real pixels: worm mask → skeleton → 12 arc-length landmarks (the chapter 01
+  pipeline on real data). Provenance per file (BBBC010 file name, well, channel).
+- `mef`: one wild-type and one LMNA−/− field (`xy001c1`, actin channel c1, nuclei c2 optional as a
+  second colour), 8-bit PNG ≤ 900 px; overlay = the outlines that `mef_data.npy` (the tutorial's file,
+  keys `wildtype_xy001c1_*` / `lmna_xy001c1_*`) holds for that field, **only if** they register on the
+  image (verify visually; if they do not, draw outlines traced by `shapekit.contours` from the tutorial's
+  `xy001c1_instances.h5` mask for the wild-type field and say so).
+- Each folder has `manifest.json`:
+  `{"id","images":[{"file","alt","caption","width","height","channel","source_file","class",
+  "overlays":[{"kind":"outline|landmarks","points":[[x,y],…],"closed":bool,"label":str}],
+  "processing": "what was done to the pixels"}], "credit":{"title","authors","url","license",
+  "license_url","notice_file"}}` with overlay coordinates in the PNG's pixel frame (x right, y down).
+- Licence files next to the samples: `docs/lab/data/images/mef/LICENSE` (full MIT text, Han's copyright)
+  and `docs/lab/data/images/celegans/CREDIT.md` (CC0 statement + the citation BBBC010 requests).
+- Budget: ≤ 2.5 MB for all samples together.
+
+**Fetch option** (`scripts/fetch_datasets.py --images celegans|mef|leaves|rbc|all`): downloads the original
+image sets into `data/_local/images/<id>/` (git-ignored), checksums printed, never committed:
+BBBC010 images + ground truth from bbbc.broadinstitute.org; a bounded MEF subset (`--max-files N`,
+default 40, from the GitHub repository's raw files or its zip); the Swedish Leaf per-species zips from the
+Linköping page (`--species` subset allowed); for rbc, point to the already-extracted erythrocytesIDB tree.
+Each prints the licence and the attribution it requires.
+
+**Script**: `scripts/make_sample_images.py` builds the samples and manifests from the fetched originals
+(deterministic), and also writes `docs/figures/01_real_pipeline.png` (the chapter 01 pipeline on one real
+BBBC010 worm: image → ground-truth mask → skeleton → 12 landmarks → spline), in the SPEC visual identity.
+
+**Page**: every dataset page gets a "0 · From pixels" panel before panel 1: the sample images with a
+toggle for the overlay (outline/landmarks), caption, processing note and the credit line with licence
+link; for datasets without redistributable images it says why and gives the fetch command.
+
+**Tests**: manifests valid; every image file exists, is a PNG within budget; overlay points inside the
+image bounds; licence/credit files present; no `rbc` or `leaves` image under `docs/`.
+
+## Round 3 deviations (page)
+
+- **Which datasets have images is registry metadata in `lab.js`**, not a probe: `REGISTRY[].images` is
+  `manifest` (celegans, mef), `unverified` (leaves), `nc_nd` (rbc) or `none` (brain, gorilla). Only the
+  `manifest` entries ever request `data/images/<id>/manifest.json`, so the other pages make no request that
+  could 404. The manifest is fetched in parallel with the dataset JSON and awaited before the page renders,
+  so panel 0 never pushes the page down; `<img>` carries the manifest's `width`/`height` and
+  `loading="lazy"`. A missing or empty manifest shows a one-line note (the file, the HTTP error, and
+  `scripts/make_sample_images.py` / `fetch_datasets.py --images <id>`) instead of breaking the page.
+- **Panel 0 is a full-width panel** at the top of the `.panels` grid (also above the license panel on rbc,
+  above the fetch box on a `fetch_locally` page and on a dataset without JSON). Images sit in an auto-fit
+  grid (`minmax(min(100%, 360px), 1fr)`): two columns on desktop (celegans' four images as 2 × 2), stacked on phones.
+- **Registration**: the overlay is an absolutely positioned SVG (`inset: 0`, 100 % × 100 %) over the
+  `<img>`, `viewBox="0 0 width height"` (the PNG's pixel frame), `preserveAspectRatio="none"` (the box has
+  the image's aspect ratio already, so this only guards against sub-pixel rounding). Strokes use
+  `vector-effect: non-scaling-stroke`, so line widths stay constant on screen at any image size; landmarks
+  are zero-length round-capped path segments sized in image pixels (max(width, height) / 120), so the 15
+  dense worms of B07 stay readable on a phone and the dots grow in the larger view. Each path has a dark halo under the class
+  color so it reads on brightfield and on fluorescence. Verified in Chromium: an overlay point's screen
+  position (via `getScreenCTM`) equals the image box's `left + x·w/W, top + y·h/H` to < 1e-13 px at
+  1280 × 800 and 390 × 844, also after resizing a loaded page between the two, and in the larger view.
+- **Overlay colors by class**: `image.class` (or an overlay's own `class`) is matched to `classes[]` by id
+  or by a loose name key (case, the Unicode minus and punctuation ignored: `LMNA−/−` = `lmna-/-`,
+  `wild-type` = `wildtype`); an unmatched class is drawn in gold and the legend says "class not matched".
+  The legend lists the classes present in class order and the overlay kinds present (outline line,
+  landmark dots).
+- **Toggle**: one per image, off by default (the raw pixels first), `aria-pressed`, with a constant label
+  that names what the manifest draws ("Show outlines and landmarks" for celegans, "Show outlines" for mef)
+  rather than the literal "Show outline/landmarks". The overlay SVG is `hidden` while off and carries
+  `role="img"` with the overlays' labels while on.
+- **Larger view**: each image is a button ("View larger: <alt>") that opens one shared `<dialog>`
+  (`showModal`; Escape or Close or a backdrop click closes it; focus returns to the image button). The
+  dialog has its own overlay toggle, starting in the state of the image's toggle, and the processing note.
+  The image is sized `min(100%, 1.5 × PNG width, (100dvh − 190px) × aspect)`, so it always fits the
+  viewport.
+- **Caption block** per image: class name in its text color, the caption, the `processing` note and
+  `source_file` / `channel` in small text. **Credit line**: title → `url`, authors, license →
+  `license_url` (fallback: the page's license-URL lookup), and the notice file linked on GitHub
+  (`…/blob/main/docs/lab/data/images/<id>/<notice_file>`), followed by the fetch command for the full
+  image set. Credit and caption links are inline text links, so they are not padded to 44 px; the toggle
+  and image buttons are ≥ 44 px on phones.
+- **No-image wording**: brain/gorilla "This dataset is landmark coordinates; there are no images." (plus:
+  the R package ships the coordinates only); leaves: the outlines are redistributed under their own
+  license, "the photographs' license could not be verified, so they are not redistributed", plus
+  `python scripts/fetch_datasets.py --images leaves`; rbc: CC BY-NC-ND 4.0, web-ready samples would be
+  modified copies, which the no-derivatives term does not allow, so as a precaution no image is in the
+  repository, plus `--rbc` first and then `python scripts/fetch_datasets.py --images rbc`. The commands are
+  the ones this spec defines; the page does not check that the installed script already has `--images`.
+- **Footer shift fixed**: `.lab-main` now has `min-height: calc(100dvh - 64px)`, so replacing "Loading…" with
+  the page no longer drags the footer up into the first screen and back (a 0.096 layout shift on every
+  desktop page, home included, that predates Round 3). What remains is the web-font swap (≤ 0.019).
+
+## Round 3 deviations (data and images)
+
+Implemented by `scripts/fetch_datasets.py --images …` and `scripts/make_sample_images.py`; tested by
+`tests/test_lab_images.py` (`python -m pytest -q`: 149 passed then; 163 after the Round 3 fixes).
+
+- **Fetch flags.** `--images` takes one or more of `celegans mef leaves rbc all` (`--images celegans mef`);
+  `--all` keeps its old meaning (the four coordinate datasets) and does not fetch images. `--species` is a
+  list of Linköping species *numbers* (`--species 1`, `--species 5,7`, `--species all`), default `5,7` (the
+  two smallest zips, 74 + 99 MB), not a count. `--max-files` counts TIFFs and fetches whole fields (c1 + c2),
+  rounding an odd number down; a 150 MB cap stops the MEF subset early whatever `--max-files` says (the
+  default 40 files is ~107 MB). Every image set refuses to run unless `.gitignore` covers `data/_local`,
+  prints size/md5/sha256 per file and writes `data/_local/images/<id>/SOURCE.txt` (licence notice +
+  checksums). The zips are unpacked with the existing `safe_extract_zip` (path-escape guard) behind an
+  `.unpacked-ok` marker; the BBBC010 zips also carry `.svn/` metadata, which is unpacked but not counted.
+- **Checksums.** BBBC and Linköping publish none: BBBC010's three zips are pinned to the md5s of the
+  2026-10-23 download (and to the server's sizes); leaf zips are pinned by size, and species 1 also by md5
+  (the only one downloaded here). MEF files are Git LFS objects: `raw.githubusercontent.com` serves the LFS
+  *pointer*, whose sha256 and size every file from `media.githubusercontent.com` is checked against (a
+  mismatch deletes the file). Both are read at a pinned commit (`7cbe667…`). The GitHub API listing
+  (`api.github.com/…/git/trees/<commit>?recursive=1`) is tried first; through this session's proxy it
+  answered 403, so the script fell back to probing the pointers of the candidate paths in a fixed order
+  (the tutorial's two fields, then `xy001`, `xy002`, … round-robin over the 12 folders): same selection.
+- **The tutorial's MEF files are fetched too.** `--images mef` also downloads Shape Analysis 101's
+  `mef_data.npy` and `xy001c1_instances.h5` (commit `bfccc0c…`, md5-pinned) into
+  `data/_local/images/mef/tutorial/`, because the overlays need them. `mef_data.npy` is a pickled dict: it
+  is only read by `make_sample_images.py`'s restricted unpickler (numpy `_reconstruct` / `ndarray` /
+  `dtype` only). The tutorial's two fields were identified by sha256: `wildtype/raw_images/xy001c*.tif` =
+  `Control/LMNA++1/xy001c*.tif`, `lmna_deficient/raw_images/xy001c*.tif` = `Circle/LMNA--1/xy001c*.tif`
+  (so the tutorial's two classes come from different micropattern conditions; the captions say so).
+- **Fetched in this round**: `--images celegans` (3 zips, 72 MB: 200 TIFFs, 100 foreground masks, 1,407
+  per-worm masks), `--images mef --max-files 8` (4 fields, 21.3 MB, + the 2 tutorial files) and
+  `--images leaves --species 1` (leaf1.zip, 251 MB, 75 TIFFs). Nothing was unreachable except the GitHub
+  API (above). `--images rbc` downloads nothing and reports the existing erythrocytesIDB tree.
+- **BBBC010 channel.** The BBBC010 page says "Channel 1 = brightfield; channel 2 = GFP", but in the files
+  `w2` is visibly the brightfield image (bright well, dark worms) and `w1` the fluorescence one; the samples
+  use `w2` as the contract says and the processing note records the discrepancy. The tutorial clone's
+  TIFFs and `B07_06_ground_truth.png` are byte-identical to the BBBC010 downloads.
+- **C. elegans overlays** come from all 27 per-worm ground-truth masks of the two wells (15 in B07, 12 in
+  A23): `outline` (longest traced contour, resampled to 100 points, closed) and `landmarks` (12, open) per
+  worm, also attached to the foreground-mask PNGs (same frame). Only each mask's largest 8-connected
+  component is used: `B07_11_ground_truth.png` contains one stray pixel, which made the greedy skeleton
+  walk jump 114 px; with it removed all 27 worms pass the check that no walk step exceeds 3 px (a worm
+  failing it would keep its outline and lose its landmarks, with the reason in `processing`). The images are
+  696 × 520, so no resize (scale 1); the fallback with only the tutorial clone (`--tutorial-dir`) gives
+  the same PNGs and figure but overlays for worm B07_06 only, and says so.
+- **MEF registration was measured, not only looked at.** Every `mef_data.npy` outline point (row, col →
+  x, y) was sampled on the distance map to the edges of an Otsu mask of the σ = 1 px smoothed actin image:
+  median 1.5 px for both fields (p90 31.5 px wild-type, which includes thin protrusions the threshold
+  misses; 6.5 px LMNA−/−), against 106 / 143 px with the axes swapped; and 0.5 px to the edges of
+  `xy001c1_instances.h5` (wild-type). They register (criterion: median ≤ 3 px, recorded in each image's
+  `registration` block), so the h5-tracing fallback (implemented) is not used. Visually confirmed on full-
+  resolution overlays. `mef_data.npy` lists most cells twice a few px apart, and one wild-type cell also as
+  "with protrusion" (4), "without" (5) and "protrusion only" (9); outlines lying on an already kept lower
+  key (median point-to-loop distance < 3 px) are not drawn: 23 → 11 (wild-type), 18 → 9 (LMNA−/−), keys
+  listed in `processing`. The points are unordered, and the page draws `landmarks` as a connected path, so
+  MEF overlays are `kind: "outline"` only, with the points put in loop order for drawing (nearest neighbour
+  + 2-opt; deterministic).
+- **MEF pixels**: actin channel only (nuclei not shown, to keep the overlay colours readable), 1st–99.7th
+  percentile stretch (the brightest rounded LMNA−/− cells clip), Lanczos resize 1280 × 1024 → 900 × 720
+  (scale 0.703125; overlay x' = (x + 0.5)·s − 0.5). PNG sizes: celegans 129 + 123 + 3 + 3 KB, mef 303 +
+  194 KB; with manifests, LICENSE and CREDIT.md the folder is 0.92 MB (budget 2.5 MB).
+- **Manifest extras** (additive to the contract): top-level `title`, `generated_by`, `coordinates`;
+  per image `class_id`, `source_md5`, `source_archive` and `well` (celegans), `scale` and `registration`
+  (mef); per overlay `class` (an id); `credit.citation` (celegans), `credit.copyright` and
+  `credit.overlay_credit` (mef: the outlines are the tutorial's, BSD-3). `class` is the registry's class
+  name (`dead`/`live`, `wild-type`/`LMNA−/−`). Point lists are written one per line (114 KB instead of
+  296 KB for celegans). No timestamps, so the files are byte-identical between runs (tested).
+- **`docs/figures/01_real_pipeline.png`** (1600 × 520) uses worm B07_06 (the tutorial's example worm), a
+  square crop around it, the `make_figures.py` identity helpers, and an 11 pt caption (the shared
+  `caption()` helper is 10.5 pt). It is listed in `docs/figures/README.md` as made by
+  `make_sample_images.py`, not `make_figures.py`.
+
+## Round 3b: the MEF confound (verified)
+
+Field-by-field registration of the tutorial's `mef_data.npy` outlines on the original images
+(kukionfr/Micropattern_MEF_LMNA_Image @ 7cbe667) matched 12 of 12 sampled wild-type fields to
+`Control/LMNA++1/xyNNN` (unpatterned) and 12 of 12 sampled LMNA−/− fields to `Circle/LMNA--1/xyNNN`
+(circle micropattern), each compared with the 12 folders' images at the same xy number, no other folder
+registering (evidence table: scratchpad `mefv/full.jsonl`; after the Round 3 fixes 14 of 14 per class, see
+below). [Inference] the whole tutorial dataset is these two folders (86 + 86 fields not sampled). So in this
+dataset genotype is confounded with substrate (circle pattern vs free spreading) and with whatever else
+differs between the two folders (culture dish, day, imaging session); the repository does not say what its
+folder suffixes 1 and 2 mean, so this is not called a replicate confound. Outline-only evidence (after the
+Round 3 fixes, circularity on loop-ordered points): circularity median 0.88 (LMNA−/−) vs 0.32 (WT);
+circularity + axis ratio alone classify at 0.94 (5-fold CV), about PointNet's 0.917 hold-out (different
+protocols). (Round 3b as first written quoted 0.11 and 0.92, from angle-ordered points.)
+
+Consequences (all must be reflected):
+- Registry: `LabDataset` gains `caveats: tuple[str, ...]`; MEF's caveat states the confound with the
+  folder names and the 24/24 evidence, and that the lab's MEF accuracy cannot be attributed to genotype.
+  MEF's `question` becomes "Can a classifier tell these two groups of fibroblasts apart from outlines alone,
+  and what is it actually seeing?" Its `title` stays but gains "(genotype confounded with substrate)" in the
+  page display. `run_lab.py` writes `caveats` into the JSON and `index.json` (`has_caveat: true`).
+- A new display-only number in mef.json: `roundness_baseline` = 5-fold CV accuracy of circularity + axis
+  ratio (StandardScaler + LogisticRegression, seed 0), computed by run_lab.py, shown next to the methods
+  with the label "roundness only (two hand-made numbers)". It is a diagnostic, not a method.
+- Page: a prominent caveat box on the MEF dataset page (above panel 0) and a marker + footnote on the
+  leaderboard row and the home card; the MEF sample image captions say which original folder each field
+  came from.
+- Text: chapters 00 (dataset description), 08 (results on MEF), 10 (MEF findings and the lesson), ATTRIBUTION
+  (MEF provenance: the two folders), README map row if it mentions genotype classification.
+- Deconfounded comparison (same substrate, both genotypes) is feasible from the original repository but
+  needs segmentation; it is out of scope for now and is mentioned as an open item.
+
+## Round 3 fixes (after the Round 3 content and QA reviews)
+
+- **Circularity on loop-ordered points.** `shapekit.contours.order_loop(points)` (new, exported from
+  `shapekit`, documented, tested on a twisted five-armed star where angle order fails: angle order gives
+  6.8× the true perimeter, `order_loop` recovers the outline exactly) is the nearest-neighbor walk + 2-opt
+  that `make_sample_images.py` used for drawing (`cycle_order`, now removed there), vectorized over `k` but
+  with the same first-improvement scan, so it returns the same order (checked on 70 clouds; the sample
+  manifests' overlay points are byte-identical). `roundness_baseline` now measures circularity on
+  `order_loop` of each cloud and records `"point_order": "nearest-neighbor + 2-opt loop"`; the display blocks
+  (PCA, examples, neighbors) keep angle order. `run_lab.py --dataset mef --force`: every method block, the
+  engine and the display blocks are identical to the previous file; only `caveats`, `roundness_baseline`,
+  `computed_at` and `timing` changed (`index.json`: only `computed_at`). New roundness numbers: accuracy
+  **0.940** (was 0.920), fold SD 0.0057, folds 0.9292 / 0.9417 / 0.9417 / 0.9417 / 0.9458, matrix
+  [[562, 38], [34, 566]], median circularity wild-type **0.321** (was 0.1135), LMNA−/− 0.8817; axis ratio
+  unchanged (1.6438 / 1.173). The roundness diagnostic now scores a little above PointNet's 0.917 hold-out;
+  the texts call the three numbers level (different protocols), not a ranking.
+- **Confound wording.** "Confounded with replicate" is dropped everywhere: the matched folders are
+  `Control/LMNA++1` and `Circle/LMNA--1`, both suffixed 1, and the repository README does not define the
+  suffix. The texts say genotype is confounded with substrate and with whatever else differs between the
+  two source folders (culture dish, day, imaging session).
+- **Evidence: 28 fields, not 26.** The QA re-verification added fields xy005 and xy077, each in *both*
+  classes, so the sample is 14 field numbers × 2 classes = 28 fields (14 + 14), and 86 + 86 = 172 are
+  unsampled. I fetched xy005c1 and xy077c1 from all 12 folders (sha256 against the LFS pointers) and ran the
+  original registration script (`scratchpad/mefv/full.py`, output `mefv/extra.jsonl`), so all 28 rows
+  use one method against all 12 candidates. With the 99.5th-percentile clip: matching folder 1.0 to 6.8 px
+  (wild-type xy005 6.80 px; the QA's 6.40 px is its own edge definition and is quoted separately in
+  ATTRIBUTION as an independent check, 2.0 to 6.4 px against 57 px or more in four folders), every other
+  folder ≥ 29.9 px; plain Otsu: wild-type xy054 647 px (one saturated 1,856-pixel bright spot sets the
+  threshold at 1631 against 335 with the clip), the other 27 fields 1.2 to 7.4 px; inside/outside median
+  intensity ratio 1.3 to 6.8 in the matching folder (1.34 on wild-type xy005; 1.38 to 6.78 on the original
+  24), 0.9 to 1.1 elsewhere. Cells of this subset from verified fields: 196 (95 wild-type, 101 LMNA−/−).
+- **"100 fields per folder" is verified, not inferred.** The pointer clone of the repository at `7cbe667`
+  (`data/_local/images/mef_verify/repo`, `git ls-tree`) lists exactly `xy001c1.tif` … `xy100c1.tif` in each
+  of the 12 folders, so the texts state it with that source rather than hedging it to the sampled numbers.
+- **MEF image license.** ATTRIBUTION, the MEF manifest credit (`license_note`, shown on the page's credit
+  line) and the fetch notice add "[Unverified] whether the author intended the MIT software license to
+  cover the image data". `docs/lab/data/images/mef/LICENSE` stays the verbatim upstream MIT text (the
+  script refuses to write anything else). The paper the README names is cited as a courtesy from PubMed
+  (PMID 33424024): Phillip, Han, Chen, Wirtz & Wu, Nature Protocols 16, 754–774 (2021),
+  doi:10.1038/s41596-020-00432-x; the README calls it a 2020 paper.
+- **Chapter 01.** "human-corrected" is kept only for BBBC010's foreground masks (the page's own words);
+  the per-worm masks are "ground-truth per-worm masks" in the chapter, `docs/figures/README.md` and the
+  regenerated figure caption. scikit-image 0.26 `skeletonize` gives 104 pixels on `B07_06_ground_truth.png`
+  (1,212 pixels, one component), `thin` 102, `shapekit` 114 with 2 tips; the chapter now says the mask is
+  not the cause.
+- **Wide figures on phones** (`docs/app.js` `markWideFigure`, `docs/style.css` `.fig-wide`): a guide figure
+  whose natural size is ≥ 1200 px wide and ≥ 2.5 × as wide as tall is wrapped, once loaded, in a focusable
+  sideways-scrolling frame (`role="region"`, labeled) with a visible hint; below 700 px the image keeps a
+  760 px width (about the desktop scale) instead of shrinking to 358 px. Wider screens are unchanged. This
+  affects `01_pipeline.png`, `01_real_pipeline.png`, `01_representations.png`, `03_votes.png` and
+  `08_temperature.png`, not only the new figure; verified at 390 × 844 and 1280 × 800, no page-level
+  horizontal scroll.
+- **Page.** Footnote and caveat box say "different protocols" when the best method's protocol differs
+  from the roundness baseline's; the box names the point order from the JSON and hedges "would be expected
+  to impose [Inference]"; `#/mef/classify` has a one-line caveat with a link to the dataset page; the
+  enlarged view's heading is the caption's first sentence, with the full caption below the image; the
+  overlay's accessible name is a summary ("15 worm outlines and landmarks", "11 cell outlines").
+- **Not changed, on purpose.** Chapter 10 keeps "one to two minutes" for the MEF PointNet run: this re-run
+  took 78 s in total (the previous one 130 s), so "about two minutes" would now be wrong. The C. elegans
+  processing note stays visible small print, not collapsed (the QA review listed its length as a nit only). The
+  `licence` spellings left in test names and in the `RuntimeError("licence-restricted …")` message matched by
+  `tests/test_lab.py` predate Round 3 and are not reader-facing text.

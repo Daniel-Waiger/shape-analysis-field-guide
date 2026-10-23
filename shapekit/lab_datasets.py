@@ -13,6 +13,9 @@ points ``(K, N, 2)`` float, ``(x, y)`` columns, and labels ``(K,)`` int in
 A dataset whose licence forbids redistribution is never stored in the
 repository: its loader reads from ``data/_local/`` (git-ignored) and raises
 ``DatasetNotFetched`` with the fetch command when the files are absent.
+``caveats`` are known problems with what a dataset can show (e.g. a
+confound); ``run_lab.py`` writes them into the dataset's JSON and flags the
+dataset in ``index.json`` (``has_caveat``), and the page shows them.
 See LAB_SPEC.md and ATTRIBUTION.md.
 """
 
@@ -52,6 +55,7 @@ class LabDataset:
     closed: bool = False          # for outlines: closed curve?
     shapes_shown: bool = True     # False when the licence forbids publishing derived coordinates
     fetch_command: str | None = None
+    caveats: tuple[str, ...] = ()  # known confounds / limits, shown prominently on the page
 
     def load(self) -> tuple[np.ndarray, np.ndarray]:
         return self.loader()
@@ -122,7 +126,8 @@ CELEGANS = LabDataset(
 MEF = LabDataset(
     id="mef",
     title="Mouse fibroblasts, wild-type vs LMNA−/−",
-    question="Can a cell's genotype be read from its outline alone?",
+    question="Can a classifier tell these two groups of fibroblasts apart from outlines alone, "
+             "and what is it actually seeing?",
     representation="pointcloud",
     classes=("wild-type", "LMNA−/−"),
     source=Source(
@@ -133,6 +138,28 @@ MEF = LabDataset(
         redistributed=True,
     ),
     loader=_load_mef,
+    caveats=(
+        "Genotype is confounded with substrate, and with whatever else differs between the two source folders "
+        "(culture dish, day, imaging session); the original repository does not say what its folder suffixes 1 "
+        "and 2 mean. All 14 sampled wild-type fields of the tutorial's data come from the original folder "
+        "Control/LMNA++1 (cells spreading freely on an unpatterned surface) and all 14 sampled LMNA−/− fields "
+        "from Circle/LMNA--1 (cells confined to a circle micropattern): 28 of 28 fields, each matched at its own "
+        "xy number, no other folder matching. [Inference] The other 86 + 86 fields come from the same two "
+        "folders, so the two classes differ in genotype, in substrate and in everything else that differs "
+        "between the folders, and the lab's MEF accuracy cannot be attributed to genotype.",
+        "Evidence: for fields xy001, xy005, xy009, xy018, xy027, xy036, xy045, xy054, xy063, xy072, xy077, "
+        "xy081, xy090 and xy100, the tutorial's outlines of each class were laid on the actin image with the "
+        "same xy number in each of the 12 folders of the original repository (kukionfr/Micropattern_MEF_LMNA_Image "
+        "@ 7cbe667: Control, Circle and Triangle; LMNA++ and LMNA--; suffixes 1 and 2; 100 fields per folder in "
+        "its file tree). Edges: an Otsu mask of the actin image smoothed with σ = 1 px, its intensities clipped "
+        "at their 99.5th percentile before thresholding. In the matching folder the outline points lie a median "
+        "1.0 to 6.8 px from those edges; in every other folder 29.9 px or more. Without the clip one wild-type "
+        "field (xy054) registers nowhere (647 px; a saturated bright spot takes the threshold), the other 27 give "
+        "1.2 to 7.4 px. The ratio of the median actin intensity inside the outlines to outside agrees: 1.3 to "
+        "6.8 in the matching folder, 0.9 to 1.1 in every other. A comparison on the same substrate (both "
+        "genotypes on circles, or both unpatterned) is possible from the original repository but needs "
+        "segmentation; it is an open item.",
+    ),
 )
 
 BRAIN = LabDataset(

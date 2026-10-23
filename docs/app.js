@@ -192,6 +192,31 @@ function renderMath(root) {
 function slugify(text) {
   return text.toLowerCase().replace(/[^\w\s-]/g, '').trim().replace(/\s+/g, '-').slice(0, 60) || 'section';
 }
+/* A very wide figure (a row of panels, 1200 px or more and at least 2.5 times as wide as tall) is unreadable when a
+   phone shrinks it to the column. On narrow screens such a figure keeps a readable width inside a sideways-scrolling
+   frame with a visible hint (style.css, .fig-wide); on wider screens nothing changes. Decided once the image's natural
+   size is known. */
+const WIDE_FIG = { minWidth: 1200, minAspect: 2.5 };
+function markWideFigure(fig, img) {
+  const apply = () => {
+    if (!img.naturalWidth || img.naturalWidth < WIDE_FIG.minWidth || img.naturalWidth / img.naturalHeight < WIDE_FIG.minAspect) return;
+    if (fig.classList.contains('fig-wide')) return;
+    const frame = document.createElement('div');
+    frame.className = 'fig-scroll';
+    frame.tabIndex = 0;
+    frame.setAttribute('role', 'region');
+    frame.setAttribute('aria-label', `Wide figure, scrolls sideways: ${img.getAttribute('alt') || 'figure'}`);
+    img.replaceWith(frame);
+    frame.appendChild(img);
+    const hint = document.createElement('p');
+    hint.className = 'fig-hint';
+    hint.setAttribute('aria-hidden', 'true');
+    hint.textContent = 'Wide figure: swipe sideways to see all panels.';
+    frame.insertAdjacentElement('afterend', hint);
+    fig.classList.add('fig-wide');
+  };
+  if (img.complete && img.naturalWidth) apply(); else img.addEventListener('load', apply, { once: true });
+}
 function postProcess(root, chapterId) {
   // figures: ../figures/ -> figures/, wrap in <figure>, italic line after becomes the caption
   root.querySelectorAll('img').forEach((img) => {
@@ -221,6 +246,7 @@ function postProcess(root, chapterId) {
           }
         }
         if (cap) { const fc = document.createElement('figcaption'); fc.innerHTML = cap.innerHTML; fig.appendChild(fc); }
+        markWideFigure(fig, img);
       }
     }
   });

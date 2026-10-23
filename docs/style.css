@@ -242,6 +242,14 @@ kbd {
 .content figcaption em { font-style: normal; }
 .content img:not(figure img) { display: block; margin: 1rem auto; border-radius: 10px; background: #FAF7F2; }
 .content img.missing { display: none; }
+/* very wide figures (app.js markWideFigure): readable width in a sideways-scrolling frame on narrow screens */
+.content figure.fig-wide .fig-scroll { overflow-x: auto; overscroll-behavior-x: contain; border-radius: 10px; }
+.content figure.fig-wide .fig-scroll:focus-visible { outline: 2px solid var(--teal); outline-offset: 2px; }
+.content .fig-hint { display: none; margin: .45rem 0 0; font-size: .8rem; color: var(--muted); text-align: center; }
+@media (max-width: 700px) {
+  .content figure.fig-wide .fig-scroll img { width: 760px; max-width: none; margin: 0; }
+  .content figure.fig-wide .fig-hint { display: block; }
+}
 .fig-missing {
   padding: 18px; border: 1px dashed var(--line); border-radius: 10px; color: var(--muted);
   font-size: .85rem; text-align: center;
